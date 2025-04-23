@@ -4,6 +4,7 @@ import Navbar from './components/Navbar';
 import FormulaList from './pages/FormulaList';
 import FormulaDetail from './pages/FormulaDetail';
 import SearchPage from './pages/SearchPage';
+import DatabaseManagement from './pages/DatabaseManagement';
 import './styles/App.scss';
 
 function App() {
@@ -16,6 +17,7 @@ function App() {
             <Route path="/" element={<FormulaList />} />
             <Route path="/formula/:id" element={<FormulaDetail />} />
             <Route path="/search" element={<SearchPage />} />
+            <Route path="/database" element={<DatabaseManagement />} />
           </Routes>
         </div>
       </div>
