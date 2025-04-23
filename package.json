@@ -1,0 +1,11 @@
+{
+  "name": "formula-app",
+  "scripts": {
+    "start:client": "cd client && npm run reactstart",
+    "start:server": "cd server && python app.py",
+    "start": "concurrently \"npm run start:client\" \"npm run start:server\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

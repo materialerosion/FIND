@@ -1,0 +1,16 @@
+.formula-list {
+    h1 {
+      margin-bottom: 30px;
+    }
+    
+    .formula-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 20px;
+      
+      a {
+        text-decoration: none;
+        color: inherit;
+      }
+    }
+  }
