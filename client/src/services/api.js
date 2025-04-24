@@ -42,37 +42,21 @@ export const uploadDatabase = async (file) => {
   const formData = new FormData();
   formData.append('file', file);
   
-  try {
-    const response = await fetch(`\${API_URL}/upload-database`, {
-      method: 'POST',
-      body: formData,
-    });
-    
-    const contentType = response.headers.get('content-type');
-    
-    // Check if the response is JSON
-    if (contentType && contentType.includes('application/json')) {
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to upload database');
-      }
-      
-      return data;
-    } else {
-      // Handle non-JSON responses
-      const text = await response.text();
-      console.error('Server returned non-JSON response:', text);
-      throw new Error('Server returned an invalid response. Please try again later.');
-    }
-  } catch (error) {
-    console.error('Upload error:', error);
-    throw error;
+  const response = await fetch(`${API_URL}/upload-database`, {
+    method: 'POST',
+    body: formData,
+  });
+  
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({ error: 'Failed to upload database' }));
+    throw new Error(errorData.error || 'Failed to upload database');
   }
+  
+  return response.json();
 };
 
 export const exportDatabase = async () => {
-  const response = await fetch(`\${API_URL}/export-database`);
+  const response = await fetch(`${API_URL}/export-database`);
   
   if (!response.ok) {
     throw new Error('Failed to export database');
