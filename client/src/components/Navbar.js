@@ -9,7 +9,7 @@ function Navbar() {
     <nav className="navbar">
       <div className="container">
         <Link to="/" className="logo">
-          <h1>Formula DB</h1>
+          <h1>FIND - Formula Ingredient Navigator & Database</h1>
         </Link>
         
         <div className="nav-links">
