@@ -4,9 +4,19 @@ import '../styles/FormulaCard.scss';
 function FormulaCard({ formula }) {
   return (
     <div className="formula-card">
-      <h3>{formula.name}</h3>
-      <div className="formula-number">{formula.formulation_number}</div>
-      <p className="formula-description">{formula.description?.substring(0, 100)}...</p>
+      <h3>{formula.formulation_name}</h3>
+      <div className="formula-number">{formula.object_number}</div>
+      
+      <div className="formula-meta">
+        <span className="brand">{formula.formula_brand}</span>
+        {formula.lifecycle_phase && (
+          <span className={`phase ${formula.lifecycle_phase.toLowerCase()}`}>
+            {formula.lifecycle_phase}
+          </span>
+        )}
+      </div>
+      
+      <div className="formula-category">{formula.sbu_category}</div>
       
       <div className="ingredients-preview">
         {formula.ingredients.slice(0, 3).map((ingredient, index) => (
@@ -15,7 +25,7 @@ function FormulaCard({ formula }) {
           </span>
         ))}
         {formula.ingredients.length > 3 && (
-          <span className="ingredient">+{formula.ingredients.length - 3} more</span>
+          <span className="ingredient more">+{formula.ingredients.length - 3} more</span>
         )}
       </div>
     </div>

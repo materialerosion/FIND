@@ -1,16 +1,95 @@
 .formula-list {
-    h1 {
-      margin-bottom: 30px;
-    }
+  h1 {
+    margin-bottom: 20px;
+  }
+  
+  .formula-stats {
+    margin-bottom: 20px;
     
-    .formula-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-      gap: 20px;
+    p {
+      color: #666;
+      font-size: 0.9rem;
+    }
+  }
+  
+  .formula-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+    
+    a {
+      text-decoration: none;
+      color: inherit;
+    }
+  }
+  
+  &.empty {
+    .empty-state {
+      background-color: var(--card-bg);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      padding: 40px;
+      text-align: center;
       
-      a {
+      p {
+        margin-bottom: 15px;
+        color: #666;
+      }
+      
+      .database-link {
+        display: inline-block;
+        margin-top: 10px;
+        background-color: var(--primary-color);
+        color: white;
+        padding: 10px 20px;
+        border-radius: 4px;
         text-decoration: none;
-        color: inherit;
+        transition: background-color 0.2s;
+        
+        &:hover {
+          background-color: darken(#3498db, 10%);
+        }
       }
     }
   }
+  
+  .error {
+    background-color: rgba(231, 76, 60, 0.1);
+    border-left: 4px solid #e74c3c;
+    padding: 20px;
+    color: #c0392b;
+    border-radius: 4px;
+  }
+}
+
+.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 30px;
+  gap: 10px;
+  
+  .pagination-button {
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    
+    &:hover:not(:disabled) {
+      background-color: darken(#3498db, 10%);
+    }
+    
+    &:disabled {
+      background-color: #ccc;
+      cursor: not-allowed;
+    }
+  }
+  
+  .pagination-info {
+    padding: 0 15px;
+    color: #666;
+  }
+}
