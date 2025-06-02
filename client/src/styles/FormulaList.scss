@@ -3,6 +3,80 @@
     margin-bottom: 20px;
   }
   
+  .list-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    
+    .filter-toggle {
+      background-color: var(--primary-color);
+      color: white;
+      border: none;
+      padding: 8px 15px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+      
+      &:hover {
+        background-color: darken(#3498db, 10%);
+      }
+      
+      &.active {
+        background-color: #2980b9;
+      }
+    }
+  }
+  
+  .filters-panel {
+    background-color: var(--card-bg);
+    border-radius: 8px;
+    box-shadow: var(--shadow);
+    padding: 20px;
+    margin-bottom: 20px;
+    
+    .filters-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 15px;
+      align-items: end;
+      
+      .filter-group {
+        label {
+          display: block;
+          margin-bottom: 8px;
+          font-weight: 500;
+          font-size: 0.9rem;
+        }
+        
+        select {
+          width: 100%;
+          padding: 8px;
+          border: 1px solid #ddd;
+          border-radius: 4px;
+          
+          &:focus {
+            outline: none;
+            border-color: var(--primary-color);
+          }
+        }
+      }
+      
+      .clear-filters {
+        background-color: #f1f1f1;
+        border: 1px solid #ddd;
+        padding: 8px 15px;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background-color 0.2s;
+        
+        &:hover {
+          background-color: #e5e5e5;
+        }
+      }
+    }
+  }
+  
   .formula-stats {
     margin-bottom: 20px;
     
@@ -21,6 +95,21 @@
       text-decoration: none;
       color: inherit;
     }
+  }
+  
+  .loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(255, 255, 255, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    font-size: 1.5rem;
+    font-weight: 500;
   }
   
   &.empty {

@@ -1,7 +1,14 @@
-const API_URL = 'http://localhost:5000/api';
+const API_URL = '/api';
 
-export const getFormulas = async (page = 1, perPage = 20) => {
-  const response = await fetch(`${API_URL}/formulas?page=${page}&per_page=${perPage}`);
+export const getFormulas = async (page = 1, perPage = 20, filters = {}) => {
+  let url = `${API_URL}/formulas?page=${page}&per_page=${perPage}`;
+  
+  // Add filters to URL if provided
+  if (filters.brand) url += `&brand=${encodeURIComponent(filters.brand)}`;
+  if (filters.category) url += `&category=${encodeURIComponent(filters.category)}`;
+  if (filters.lifecyclePhase) url += `&lifecycle_phase=${encodeURIComponent(filters.lifecyclePhase)}`;
+  
+  const response = await fetch(url);
   if (!response.ok) {
     const errorData = await response.json();
     throw new Error(errorData.error || 'Failed to fetch formulas');
@@ -17,27 +24,36 @@ export const getFormulaById = async (id) => {
   return response.json();
 };
 
-export const searchFormulas = async (ingredient, minAmount, maxAmount, brand, category, page = 1, perPage = 20) => {
+export const searchFormulas = async (searchParams, page = 1, perPage = 20) => {
   let url = `${API_URL}/formulas/search?page=${page}&per_page=${perPage}`;
   
-  if (ingredient) {
-    url += `&ingredient=${encodeURIComponent(ingredient)}`;
+  // Add ingredient search parameters
+  if (searchParams.ingredients && searchParams.ingredients.length > 0) {
+    searchParams.ingredients.forEach((ing, index) => {
+      url += `&ingredient${index+1}=${encodeURIComponent(ing)}`;
+    });
   }
   
-  if (minAmount) {
-    url += `&min_amount=${encodeURIComponent(minAmount)}`;
+  // Add amount filters
+  if (searchParams.minAmount) {
+    url += `&min_amount=${encodeURIComponent(searchParams.minAmount)}`;
   }
   
-  if (maxAmount) {
-    url += `&max_amount=${encodeURIComponent(maxAmount)}`;
+  if (searchParams.maxAmount) {
+    url += `&max_amount=${encodeURIComponent(searchParams.maxAmount)}`;
   }
   
-  if (brand) {
-    url += `&brand=${encodeURIComponent(brand)}`;
+  // Add other filters
+  if (searchParams.brand) {
+    url += `&brand=${encodeURIComponent(searchParams.brand)}`;
   }
   
-  if (category) {
-    url += `&category=${encodeURIComponent(category)}`;
+  if (searchParams.category) {
+    url += `&category=${encodeURIComponent(searchParams.category)}`;
+  }
+  
+  if (searchParams.lifecyclePhase) {
+    url += `&lifecycle_phase=${encodeURIComponent(searchParams.lifecyclePhase)}`;
   }
   
   const response = await fetch(url);
@@ -109,6 +125,15 @@ export const getDatabaseStatus = async () => {
   const response = await fetch(`${API_URL}/database-status`);
   if (!response.ok) {
     throw new Error('Failed to get database status');
+  }
+  return response.json();
+};
+
+// Get available filter options
+export const getFilterOptions = async () => {
+  const response = await fetch(`${API_URL}/filter-options`);
+  if (!response.ok) {
+    throw new Error('Failed to get filter options');
   }
   return response.json();
 };

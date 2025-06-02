@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { getFormulas } from '../services/api';
+import { getFormulas, getFilterOptions } from '../services/api';
 import FormulaCard from '../components/FormulaCard';
 import '../styles/FormulaList.scss';
 
@@ -10,14 +10,42 @@ function FormulaList() {
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  
+  // Filter states
+  const [filterOptions, setFilterOptions] = useState({
+    brands: [],
+    categories: [],
+    lifecyclePhases: []
+  });
+  const [selectedFilters, setSelectedFilters] = useState({
+    brand: '',
+    category: '',
+    lifecyclePhase: ''
+  });
+  const [showFilters, setShowFilters] = useState(false);
 
+  // Load filter options
+  useEffect(() => {
+    const loadFilterOptions = async () => {
+      try {
+        const options = await getFilterOptions();
+        setFilterOptions(options);
+      } catch (error) {
+        console.error('Error loading filter options:', error);
+      }
+    };
+    
+    loadFilterOptions();
+  }, []);
+
+  // Load formulas with applied filters
   useEffect(() => {
     const fetchFormulas = async () => {
       setLoading(true);
       setError(null);
       
       try {
-        const data = await getFormulas(currentPage, 20);
+        const data = await getFormulas(currentPage, 20, selectedFilters);
         setFormulas(data.formulas);
         setPagination(data.pagination);
         setLoading(false);
@@ -29,14 +57,35 @@ function FormulaList() {
     };
 
     fetchFormulas();
-  }, [currentPage]);
+  }, [currentPage, selectedFilters]);
 
   const handlePageChange = (newPage) => {
     setCurrentPage(newPage);
     window.scrollTo(0, 0);
   };
+  
+  const handleFilterChange = (filterType, value) => {
+    setSelectedFilters({
+      ...selectedFilters,
+      [filterType]: value
+    });
+    setCurrentPage(1); // Reset to first page when filters change
+  };
+  
+  const clearFilters = () => {
+    setSelectedFilters({
+      brand: '',
+      category: '',
+      lifecyclePhase: ''
+    });
+    setCurrentPage(1);
+  };
+  
+  const toggleFilters = () => {
+    setShowFilters(!showFilters);
+  };
 
-  if (loading) {
+  if (loading && formulas.length === 0) {
     return <div className="loading">Loading formulas...</div>;
   }
 
@@ -44,7 +93,7 @@ function FormulaList() {
     return <div className="error">{error}</div>;
   }
 
-  if (formulas.length === 0) {
+  if (formulas.length === 0 && !loading) {
     return (
       <div className="formula-list empty">
         <h1>Formula Database</h1>
@@ -59,13 +108,72 @@ function FormulaList() {
 
   return (
     <div className="formula-list">
-      <h1>Formula Database</h1>
+      <div className="list-header">
+        <h1>Formula Database</h1>
+        <button 
+          className={`filter-toggle ${showFilters ? 'active' : ''}`} 
+          onClick={toggleFilters}
+        >
+          {showFilters ? 'Hide Filters' : 'Show Filters'}
+        </button>
+      </div>
+      
+      {showFilters && (
+        <div className="filters-panel">
+          <div className="filters-container">
+            <div className="filter-group">
+              <label>Brand:</label>
+              <select 
+                value={selectedFilters.brand} 
+                onChange={(e) => handleFilterChange('brand', e.target.value)}
+              >
+                <option value="">All Brands</option>
+                {filterOptions.brands.map((brand, index) => (
+                  <option key={index} value={brand}>{brand}</option>
+                ))}
+              </select>
+            </div>
+            
+            <div className="filter-group">
+              <label>Category:</label>
+              <select 
+                value={selectedFilters.category} 
+                onChange={(e) => handleFilterChange('category', e.target.value)}
+              >
+                <option value="">All Categories</option>
+                {filterOptions.categories.map((category, index) => (
+                  <option key={index} value={category}>{category}</option>
+                ))}
+              </select>
+            </div>
+            
+            <div className="filter-group">
+              <label>Lifecycle Phase:</label>
+              <select 
+                value={selectedFilters.lifecyclePhase} 
+                onChange={(e) => handleFilterChange('lifecyclePhase', e.target.value)}
+              >
+                <option value="">All Phases</option>
+                {filterOptions.lifecyclePhases.map((phase, index) => (
+                  <option key={index} value={phase}>{phase}</option>
+                ))}
+              </select>
+            </div>
+            
+            <button className="clear-filters" onClick={clearFilters}>
+              Clear Filters
+            </button>
+          </div>
+        </div>
+      )}
       
       {pagination && (
         <div className="formula-stats">
           <p>Showing {formulas.length} of {pagination.total} formulas (Page {pagination.current_page} of {pagination.pages})</p>
         </div>
       )}
+      
+      {loading && <div className="loading-overlay">Loading...</div>}
       
       <div className="formula-grid">
         {formulas.map(formula => (

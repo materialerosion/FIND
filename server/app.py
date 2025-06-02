@@ -4,7 +4,7 @@ import pandas as pd
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from models.formula import db, Formula, Ingredient, FormulaIngredient
-from sqlalchemy import and_
+from sqlalchemy import and_, or_, func, distinct
 from werkzeug.utils import secure_filename
 import json
 
@@ -161,13 +161,30 @@ def get_formulas():
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 20, type=int)
         
+        # Get filter parameters
+        brand = request.args.get('brand', '')
+        category = request.args.get('category', '')
+        lifecycle_phase = request.args.get('lifecycle_phase', '')
+        
         # Limit maximum per_page to avoid overwhelming responses
         per_page = min(per_page, 100)
         
         print(f"Fetching formulas (page {page}, per_page {per_page})...")
         
+        # Build query with filters
+        query = Formula.query
+        
+        if brand:
+            query = query.filter(Formula.formula_brand == brand)
+        
+        if category:
+            query = query.filter(Formula.sbu_category == category)
+        
+        if lifecycle_phase:
+            query = query.filter(Formula.lifecycle_phase == lifecycle_phase)
+        
         # Get paginated formulas
-        pagination = Formula.query.paginate(page=page, per_page=per_page, error_out=False)
+        pagination = query.paginate(page=page, per_page=per_page, error_out=False)
         formulas = pagination.items
         
         print(f"Found {len(formulas)} formulas for this page")
@@ -254,12 +271,6 @@ def get_formula(formula_id):
 @app.route('/api/formulas/search', methods=['GET'])
 def search_formulas():
     try:
-        ingredient_name = request.args.get('ingredient')
-        min_amount = request.args.get('min_amount')
-        max_amount = request.args.get('max_amount')
-        brand = request.args.get('brand')
-        category = request.args.get('category')
-        
         # Get pagination parameters
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 20, type=int)
@@ -267,38 +278,103 @@ def search_formulas():
         # Limit maximum per_page to avoid overwhelming responses
         per_page = min(per_page, 100)
         
-        query = Formula.query.join(FormulaIngredient).join(Ingredient)
+        # Start with a base query
+        query = Formula.query
         
-        filters = []
-        if ingredient_name:
-            filters.append(Ingredient.name.ilike(f'%{ingredient_name}%'))
+        # Check for multiple ingredients
+        ingredient_filters = []
+        i = 1
+        while True:
+            ingredient_param = request.args.get(f'ingredient{i}')
+            if not ingredient_param:
+                # If we have ingredient1 but not ingredient2, check for the legacy 'ingredient' param
+                if i == 1:
+                    ingredient_param = request.args.get('ingredient')
+                    if ingredient_param:
+                        ingredient_filters.append(Ingredient.name.ilike(f'%{ingredient_param}%'))
+                break
+            
+            ingredient_filters.append(Ingredient.name.ilike(f'%{ingredient_param}%'))
+            i += 1
         
-        if min_amount and max_amount:
-            filters.append(and_(FormulaIngredient.amount >= float(min_amount), 
-                               FormulaIngredient.amount <= float(max_amount)))
-        elif min_amount:
-            filters.append(FormulaIngredient.amount >= float(min_amount))
-        elif max_amount:
-            filters.append(FormulaIngredient.amount <= float(max_amount))
+        # If we have ingredient filters, apply them
+        if ingredient_filters:
+            # For each ingredient, we need to find formulas that contain it
+            formula_ids_with_all_ingredients = None
+            
+            for ingredient_filter in ingredient_filters:
+                # Find formulas with this ingredient
+                subquery = db.session.query(FormulaIngredient.formula_id)\
+                    .join(Ingredient, FormulaIngredient.ingredient_id == Ingredient.id)\
+                    .filter(ingredient_filter)\
+                    .distinct()
+                
+                formula_ids_with_ingredient = [r[0] for r in subquery.all()]
+                
+                # Intersect with previous results
+                if formula_ids_with_all_ingredients is None:
+                    formula_ids_with_all_ingredients = set(formula_ids_with_ingredient)
+                else:
+                    formula_ids_with_all_ingredients &= set(formula_ids_with_ingredient)
+                
+                # If at any point we have no matching formulas, we can stop
+                if not formula_ids_with_all_ingredients:
+                    break
+            
+            # Apply the formula ID filter to our main query
+            if formula_ids_with_all_ingredients:
+                query = query.filter(Formula.id.in_(formula_ids_with_all_ingredients))
+            else:
+                # No formulas match all ingredients
+                return jsonify({
+                    'formulas': [],
+                    'pagination': {
+                        'total': 0,
+                        'pages': 0,
+                        'current_page': page,
+                        'per_page': per_page,
+                        'has_next': False,
+                        'has_prev': False
+                    }
+                })
         
+        # Apply amount filters if specified
+        min_amount = request.args.get('min_amount')
+        max_amount = request.args.get('max_amount')
+        
+        if min_amount or max_amount:
+            # We need to filter by amount, which requires joining to FormulaIngredient
+            query = query.join(FormulaIngredient)
+            
+            if min_amount:
+                query = query.filter(FormulaIngredient.amount >= float(min_amount))
+            
+            if max_amount:
+                query = query.filter(FormulaIngredient.amount <= float(max_amount))
+        
+        # Apply other filters
+        brand = request.args.get('brand')
         if brand:
-            filters.append(Formula.formula_brand.ilike(f'%{brand}%'))
+            query = query.filter(Formula.formula_brand == brand)
         
+        category = request.args.get('category')
         if category:
-            filters.append(Formula.sbu_category.ilike(f'%{category}%'))
+            query = query.filter(Formula.sbu_category == category)
         
-        if filters:
-            query = query.filter(*filters)
+        lifecycle_phase = request.args.get('lifecycle_phase')
+        if lifecycle_phase:
+            query = query.filter(Formula.lifecycle_phase == lifecycle_phase)
         
-        # Make the query distinct to avoid duplicates
+        # Make sure results are distinct
         query = query.distinct()
         
-        # Get total count for pagination
-        total = query.count()
+        # Count total results for pagination
+        total_count = query.count()
         
         # Apply pagination
         formulas = query.paginate(page=page, per_page=per_page, error_out=False).items
         
+        # Prepare result
         result = []
         for formula in formulas:
             formula_data = {
@@ -324,10 +400,10 @@ def search_formulas():
             result.append(formula_data)
         
         # Calculate pagination metadata
-        total_pages = (total + per_page - 1) // per_page  # Ceiling division
+        total_pages = (total_count + per_page - 1) // per_page  # Ceiling division
         
         pagination_data = {
-            'total': total,
+            'total': total_count,
             'pages': total_pages,
             'current_page': page,
             'per_page': per_page,
@@ -342,6 +418,33 @@ def search_formulas():
         
     except Exception as e:
         print(f"Error in search_formulas: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/filter-options', methods=['GET'])
+def get_filter_options():
+    try:
+        # Get unique brands
+        brands_query = db.session.query(distinct(Formula.formula_brand)).filter(Formula.formula_brand != '').order_by(Formula.formula_brand)
+        brands = [brand[0] for brand in brands_query.all()]
+        
+        # Get unique categories
+        categories_query = db.session.query(distinct(Formula.sbu_category)).filter(Formula.sbu_category != '').order_by(Formula.sbu_category)
+        categories = [category[0] for category in categories_query.all()]
+        
+        # Get unique lifecycle phases
+        phases_query = db.session.query(distinct(Formula.lifecycle_phase)).filter(Formula.lifecycle_phase != '').order_by(Formula.lifecycle_phase)
+        lifecycle_phases = [phase[0] for phase in phases_query.all()]
+        
+        return jsonify({
+            'brands': brands,
+            'categories': categories,
+            'lifecyclePhases': lifecycle_phases
+        })
+        
+    except Exception as e:
+        print(f"Error getting filter options: {str(e)}")
         import traceback
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
