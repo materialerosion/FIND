@@ -139,3 +139,97 @@ export const getFilterOptions = async () => {
   }
   return response.json();
 };
+
+export const getIngredients = async (page = 1, perPage = 50, search = '') => {
+  let url = `${API_URL}/ingredients?page=${page}&per_page=${perPage}`;
+  
+  if (search) {
+    url += `&search=${encodeURIComponent(search)}`;
+  }
+  
+  const response = await fetch(url);
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || 'Failed to fetch ingredients');
+  }
+  return response.json();
+};
+
+export const getIngredientAliases = async (ingredientId) => {
+  const response = await fetch(`${API_URL}/ingredients/${ingredientId}/aliases`);
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || 'Failed to fetch ingredient aliases');
+  }
+  return response.json();
+};
+
+export const addIngredientAlias = async (ingredientId, alias) => {
+  const response = await fetch(`${API_URL}/ingredients/${ingredientId}/aliases`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ alias }),
+  });
+  
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || 'Failed to add alias');
+  }
+  return response.json();
+};
+
+export const deleteAlias = async (aliasId) => {
+  const response = await fetch(`${API_URL}/aliases/${aliasId}`, {
+    method: 'DELETE',
+  });
+  
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || 'Failed to delete alias');
+  }
+  return response.json();
+};
+
+export const importAliases = async (file) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  
+  const response = await fetch(`${API_URL}/aliases/import`, {
+    method: 'POST',
+    body: formData,
+  });
+  
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || 'Failed to import aliases');
+  }
+  return response.json();
+};
+
+export const exportAliases = async () => {
+  window.location.href = `${API_URL}/aliases/export`;
+  return true;
+};
+
+export const backupAliases = async () => {
+  window.location.href = `${API_URL}/aliases/backup`;
+  return true;
+};
+
+export const restoreAliases = async (file) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  
+  const response = await fetch(`${API_URL}/aliases/restore`, {
+    method: 'POST',
+    body: formData,
+  });
+  
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || 'Failed to restore aliases');
+  }
+  return response.json();
+};

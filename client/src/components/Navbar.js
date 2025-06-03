@@ -31,6 +31,12 @@ function Navbar() {
           >
             Database
           </Link>
+          <Link 
+            to="/aliases" 
+            className={location.pathname === '/aliases' ? 'active' : ''}
+          >
+            Aliases
+          </Link>
         </div>
       </div>
     </nav>

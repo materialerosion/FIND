@@ -3,7 +3,7 @@ import os
 import pandas as pd
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from models.formula import db, Formula, Ingredient, FormulaIngredient
+from models.formula import db, Formula, Ingredient, FormulaIngredient, IngredientAlias
 from sqlalchemy import and_, or_, func, distinct
 from werkzeug.utils import secure_filename
 import json
@@ -34,10 +34,23 @@ def initialize_database_from_excel():
         
         print(f"Successfully read Excel file with {len(df)} rows and {len(df.columns)} columns")
         
+        # Backup existing aliases before clearing data
+        print("Backing up existing aliases...")
+        aliases_backup = []
+        for alias in IngredientAlias.query.all():
+            ingredient = Ingredient.query.get(alias.ingredient_id)
+            if ingredient:
+                aliases_backup.append({
+                    'ingredient_name': ingredient.name,
+                    'ingredient_number': ingredient.fing_item_number,
+                    'alias': alias.alias
+                })
+        
         # Clear existing data
         print("Clearing existing database records...")
         db.session.query(FormulaIngredient).delete()
         db.session.query(Formula).delete()
+        db.session.query(IngredientAlias).delete()  # Delete aliases
         db.session.query(Ingredient).delete()
         db.session.commit()
         
@@ -114,7 +127,9 @@ def initialize_database_from_excel():
                 )
                 db.session.add(formula_ingredient)
                 formula_ingredients_created += 1
-                
+
+            
+
             except Exception as e:
                 errors += 1
                 print(f"Error processing row {index}: {str(e)}")
@@ -316,10 +331,38 @@ def search_formulas():
             formula_ids_with_all_ingredients = None
             
             for ingredient_filter in ingredient_filters:
-                # Start with a base subquery for this ingredient
-                subquery = db.session.query(FormulaIngredient.formula_id)\
-                    .join(Ingredient, FormulaIngredient.ingredient_id == Ingredient.id)\
-                    .filter(Ingredient.name.ilike(f'%{ingredient_filter["name"]}%'))
+                # Find ingredients matching the name OR any of their aliases
+                ingredient_name = ingredient_filter['name']
+                
+                # Find all ingredients that match by name or alias
+                matching_ingredients = db.session.query(Ingredient.id).distinct().\
+                    outerjoin(IngredientAlias, Ingredient.id == IngredientAlias.ingredient_id).\
+                    filter(
+                        db.or_(
+                            Ingredient.name.ilike(f'%{ingredient_name}%'),
+                            IngredientAlias.alias.ilike(f'%{ingredient_name}%')
+                        )
+                    ).all()
+                
+                matching_ingredient_ids = [r[0] for r in matching_ingredients]
+                
+                if not matching_ingredient_ids:
+                    # No ingredients match this filter, so no formulas will match
+                    return jsonify({
+                        'formulas': [],
+                        'pagination': {
+                            'total': 0,
+                            'pages': 0,
+                            'current_page': page,
+                            'per_page': per_page,
+                            'has_next': False,
+                            'has_prev': False
+                        }
+                    })
+                
+                # Find formulas containing any of these ingredients
+                subquery = db.session.query(FormulaIngredient.formula_id).\
+                    filter(FormulaIngredient.ingredient_id.in_(matching_ingredient_ids))
                 
                 # Apply amount filters for this specific ingredient
                 if ingredient_filter['min_amount']:
@@ -428,6 +471,88 @@ def search_formulas():
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/aliases/backup', methods=['GET'])
+def backup_aliases():
+    try:
+        # Get all aliases with ingredient information
+        aliases = []
+        for alias in IngredientAlias.query.all():
+            ingredient = Ingredient.query.get(alias.ingredient_id)
+            if ingredient:
+                aliases.append({
+                    'ingredient_name': ingredient.name,
+                    'ingredient_number': ingredient.fing_item_number,
+                    'alias': alias.alias
+                })
+        
+        # Create a JSON response with download header
+        response = jsonify(aliases)
+        response.headers["Content-Disposition"] = "attachment; filename=aliases_backup.json"
+        return response
+    except Exception as e:
+        print(f"Error backing up aliases: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/aliases/restore', methods=['POST'])
+def restore_aliases():
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file part'}), 400
+    
+    file = request.files['file']
+    
+    if file.filename == '':
+        return jsonify({'error': 'No selected file'}), 400
+    
+    if file and file.filename.endswith('.json'):
+        try:
+            # Load the JSON data
+            aliases_data = json.loads(file.read().decode('utf-8'))
+            
+            aliases_restored = 0
+            aliases_skipped = 0
+            
+            for alias_data in aliases_data:
+                # Find the ingredient by name or number
+                ingredient = Ingredient.query.filter(
+                    (Ingredient.name == alias_data['ingredient_name']) | 
+                    (Ingredient.fing_item_number == alias_data['ingredient_number'])
+                ).first()
+                
+                if ingredient:
+                    # Check if this alias already exists for the ingredient
+                    existing_alias = IngredientAlias.query.filter_by(
+                        ingredient_id=ingredient.id,
+                        alias=alias_data['alias']
+                    ).first()
+                    
+                    if not existing_alias:
+                        new_alias = IngredientAlias(
+                            alias=alias_data['alias'],
+                            ingredient_id=ingredient.id
+                        )
+                        db.session.add(new_alias)
+                        aliases_restored += 1
+                    else:
+                        aliases_skipped += 1
+                else:
+                    aliases_skipped += 1
+            
+            # Commit the restored aliases
+            db.session.commit()
+            
+            return jsonify({
+                'success': True,
+                'message': f'Restored {aliases_restored} aliases successfully',
+                'aliases_restored': aliases_restored,
+                'aliases_skipped': aliases_skipped
+            })
+            
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': f'Error restoring aliases: {str(e)}'}), 500
+    
+    return jsonify({'error': 'Invalid file format. Please upload a JSON file.'}), 400
+
 @app.route('/api/filter-options', methods=['GET'])
 def get_filter_options():
     try:
@@ -453,6 +578,135 @@ def get_filter_options():
         print(f"Error getting filter options: {str(e)}")
         import traceback
         traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/ingredients', methods=['GET'])
+def get_ingredients():
+    try:
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 50, type=int)
+        search = request.args.get('search', '')
+        
+        # Base query joining with aliases to allow searching by alias
+        query = Ingredient.query.outerjoin(IngredientAlias)
+        
+        if search:
+            # Search by ingredient name OR alias
+            query = query.filter(
+                db.or_(
+                    Ingredient.name.ilike(f'%{search}%'),
+                    Ingredient.fing_item_number.ilike(f'%{search}%'),
+                    IngredientAlias.alias.ilike(f'%{search}%')
+                )
+            )
+        
+        # Make the query distinct to avoid duplicates from the join
+        query = query.distinct()
+            
+        # Apply pagination
+        pagination = query.order_by(Ingredient.name).paginate(page=page, per_page=per_page, error_out=False)
+        
+        ingredients = []
+        for ingredient in pagination.items:
+            aliases = [alias.alias for alias in ingredient.aliases]
+            ingredients.append({
+                'id': ingredient.id,
+                'name': ingredient.name,
+                'fing_item_number': ingredient.fing_item_number,
+                'description': ingredient.description,
+                'aliases': aliases
+            })
+        
+        return jsonify({
+            'ingredients': ingredients,
+            'pagination': {
+                'total': pagination.total,
+                'pages': pagination.pages,
+                'current_page': page,
+                'per_page': per_page,
+                'has_next': pagination.has_next,
+                'has_prev': pagination.has_prev
+            }
+        })
+    except Exception as e:
+        print(f"Error in get_ingredients: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/ingredients/<int:ingredient_id>/aliases', methods=['GET'])
+def get_ingredient_aliases(ingredient_id):
+    try:
+        ingredient = Ingredient.query.get_or_404(ingredient_id)
+        aliases = [{'id': alias.id, 'alias': alias.alias} for alias in ingredient.aliases]
+        
+        return jsonify({
+            'ingredient_id': ingredient_id,
+            'ingredient_name': ingredient.name,
+            'aliases': aliases
+        })
+    except Exception as e:
+        print(f"Error in get_ingredient_aliases: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/ingredients/<int:ingredient_id>/aliases', methods=['POST'])
+def add_ingredient_alias(ingredient_id):
+    try:
+        ingredient = Ingredient.query.get_or_404(ingredient_id)
+        data = request.json
+        
+        if not data or 'alias' not in data:
+            return jsonify({"error": "Alias is required"}), 400
+            
+        alias_text = data['alias'].strip()
+        if not alias_text:
+            return jsonify({"error": "Alias cannot be empty"}), 400
+            
+        # Check if alias already exists for this ingredient
+        existing_alias = IngredientAlias.query.filter_by(
+            ingredient_id=ingredient_id, 
+            alias=alias_text
+        ).first()
+        
+        if existing_alias:
+            return jsonify({"error": "This alias already exists for this ingredient"}), 400
+            
+        # Create new alias
+        new_alias = IngredientAlias(
+            alias=alias_text,
+            ingredient_id=ingredient_id
+        )
+        
+        db.session.add(new_alias)
+        db.session.commit()
+        
+        return jsonify({
+            'id': new_alias.id,
+            'alias': new_alias.alias,
+            'ingredient_id': ingredient_id,
+            'message': 'Alias added successfully'
+        })
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error in add_ingredient_alias: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/aliases/<int:alias_id>', methods=['DELETE'])
+def delete_alias(alias_id):
+    try:
+        alias = IngredientAlias.query.get_or_404(alias_id)
+        ingredient_id = alias.ingredient_id
+        
+        db.session.delete(alias)
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Alias deleted successfully',
+            'ingredient_id': ingredient_id
+        })
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error in delete_alias: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/upload-excel', methods=['POST'])
@@ -658,5 +912,5 @@ if __name__ == '__main__':
             print("Database successfully initialized from Excel file!")
         else:
             print("Failed to initialize database from Excel file.")
-            
+
     app.run(debug=True, port=5000)

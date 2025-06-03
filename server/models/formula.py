@@ -1,5 +1,5 @@
 from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime,timezone
+from datetime import datetime, timezone
 
 db = SQLAlchemy()
 
@@ -9,6 +9,16 @@ class Ingredient(db.Model):
     name = db.Column(db.String(255), nullable=False)
     description = db.Column(db.String(255))
     description_expanded = db.Column(db.Text)
+    aliases = db.relationship('IngredientAlias', backref='ingredient', lazy=True, cascade="all, delete-orphan")
+    
+class IngredientAlias(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    alias = db.Column(db.String(255), nullable=False)
+    ingredient_id = db.Column(db.Integer, db.ForeignKey('ingredient.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.now(timezone.utc))
+    
+    # Add a unique constraint to prevent duplicate aliases for the same ingredient
+    __table_args__ = (db.UniqueConstraint('alias', 'ingredient_id', name='_alias_ingredient_uc'),)
     
 class FormulaIngredient(db.Model):
     id = db.Column(db.Integer, primary_key=True)
