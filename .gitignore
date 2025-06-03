@@ -1,5 +1,6 @@
 #Instance uploads
 server/uploads/
+server/backups
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

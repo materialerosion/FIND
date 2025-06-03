@@ -7,7 +7,11 @@ import {
   importAliases,
   exportAliases,
   backupAliases,
-  restoreAliases
+  restoreAliases,
+  createServerBackup,
+  getServerBackups,
+  restoreServerBackup,
+  deleteServerBackup
 } from '../services/api';
 import '../styles/AliasManagement.scss';
 
@@ -34,6 +38,16 @@ function AliasManagement() {
   const [restoreResult, setRestoreResult] = useState(null);
   const [restoring, setRestoring] = useState(false);
   
+  // Add new state variables for server backups
+  const [serverBackups, setServerBackups] = useState([]);
+  const [loadingBackups, setLoadingBackups] = useState(false);
+  const [backupError, setBackupError] = useState('');
+  const [backupSuccess, setBackupSuccess] = useState('');
+  const [isCreatingBackup, setIsCreatingBackup] = useState(false);
+  const [isRestoringBackup, setIsRestoringBackup] = useState(false);
+  const [selectedBackupId, setSelectedBackupId] = useState('');
+  const [clearExistingOnRestore, setClearExistingOnRestore] = useState(false);
+  
   // Load ingredients
   useEffect(() => {
     fetchIngredients(currentPage, searchTerm);
@@ -50,6 +64,24 @@ function AliasManagement() {
     
     return () => clearTimeout(timer);
   }, [searchTerm]);
+  
+  // Load server backups
+  useEffect(() => {
+    fetchServerBackups();
+  }, []);
+  
+  const fetchServerBackups = async () => {
+    try {
+      setLoadingBackups(true);
+      setBackupError('');
+      const result = await getServerBackups();
+      setServerBackups(result.backups);
+    } catch (error) {
+      setBackupError(`Failed to load backups: ${error.message}`);
+    } finally {
+      setLoadingBackups(false);
+    }
+  };
   
   const fetchIngredients = async (page = currentPage, search = searchTerm) => {
     try {
@@ -286,6 +318,75 @@ function AliasManagement() {
       setAliasError(error.message);
     } finally {
       setRestoring(false);
+    }
+  };
+
+  const handleCreateServerBackup = async () => {
+    try {
+      setIsCreatingBackup(true);
+      setBackupError('');
+      setBackupSuccess('');
+      
+      const result = await createServerBackup();
+      
+      setBackupSuccess('Backup created successfully');
+      fetchServerBackups(); // Refresh the list of backups
+    } catch (error) {
+      setBackupError(`Failed to create backup: ${error.message}`);
+    } finally {
+      setIsCreatingBackup(false);
+    }
+  };
+  
+  const handleRestoreServerBackup = async () => {
+    if (!selectedBackupId) {
+      setBackupError('Please select a backup to restore');
+      return;
+    }
+    
+    if (!window.confirm(
+      clearExistingOnRestore 
+        ? 'This will DELETE ALL existing aliases and restore from the selected backup. Continue?' 
+        : 'This will merge the backup with existing aliases. Continue?'
+    )) {
+      return;
+    }
+    
+    try {
+      setIsRestoringBackup(true);
+      setBackupError('');
+      setBackupSuccess('');
+      
+      const result = await restoreServerBackup(selectedBackupId, clearExistingOnRestore);
+      
+      setBackupSuccess(`Restored ${result.aliases_restored} aliases successfully`);
+      
+      // If an ingredient is selected, refresh its aliases
+      if (selectedIngredient) {
+        const data = await getIngredientAliases(selectedIngredient.id);
+        setAliases(data.aliases);
+      }
+      
+      // Refresh the ingredients list to show updated alias counts
+      fetchIngredients(currentPage, searchTerm);
+    } catch (error) {
+      setBackupError(`Failed to restore backup: ${error.message}`);
+    } finally {
+      setIsRestoringBackup(false);
+    }
+  };
+  
+  const handleDeleteServerBackup = async (backupId) => {
+    if (!window.confirm('Are you sure you want to delete this backup? This action cannot be undone.')) {
+      return;
+    }
+    
+    try {
+      await deleteServerBackup(backupId);
+      setBackupSuccess('Backup deleted successfully');
+      fetchServerBackups(); // Refresh the list of backups
+    } catch (error) {
+      setBackupError(`Failed to delete backup: ${error.message}`);
     }
   };
 
@@ -610,6 +711,107 @@ function AliasManagement() {
               </div>
             </div>
           )}
+        </div>
+        
+        <div className="server-backups-section">
+          <h3>Server Backups</h3>
+          <p className="help-text">
+            Create and manage backups stored on the server. These backups can be restored at any time.
+          </p>
+          
+          <div className="server-backup-actions">
+            <button 
+              className="create-backup-button"
+              onClick={handleCreateServerBackup}
+              disabled={isCreatingBackup}
+            >
+              {isCreatingBackup ? 'Creating...' : 'Create New Backup'}
+            </button>
+            
+            {backupError && <div className="error-message">{backupError}</div>}
+            {backupSuccess && <div className="success-message">{backupSuccess}</div>}
+          </div>
+          
+          <div className="server-backup-restore">
+            <h4>Restore from Server Backup</h4>
+            
+            <div className="restore-options">
+              <div className="select-backup">
+                <label>Select Backup:</label>
+                <select 
+                  value={selectedBackupId}
+                  onChange={(e) => setSelectedBackupId(e.target.value)}
+                  disabled={loadingBackups || isRestoringBackup}
+                >
+                  <option value="">-- Select a backup --</option>
+                  {serverBackups.map(backup => (
+                    <option key={backup.id} value={backup.id}>
+                      {new Date(backup.created_at).toLocaleString()} ({backup.aliases_count} aliases)
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              <div className="restore-option">
+                <label>
+                  <input 
+                    type="checkbox"
+                    checked={clearExistingOnRestore}
+                    onChange={(e) => setClearExistingOnRestore(e.target.checked)}
+                    disabled={isRestoringBackup}
+                  />
+                  Clear existing aliases before restore
+                </label>
+              </div>
+              
+              <button 
+                className="restore-button"
+                onClick={handleRestoreServerBackup}
+                disabled={!selectedBackupId || isRestoringBackup}
+              >
+                {isRestoringBackup ? 'Restoring...' : 'Restore Selected Backup'}
+              </button>
+            </div>
+          </div>
+          
+          <div className="server-backups-list">
+            <h4>Available Backups</h4>
+            
+            {loadingBackups ? (
+              <p>Loading backups...</p>
+            ) : serverBackups.length === 0 ? (
+              <p>No backups available</p>
+            ) : (
+              <table className="backups-table">
+                <thead>
+                  <tr>
+                    <th>Created</th>
+                    <th>Aliases</th>
+                    <th>Size</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {serverBackups.map(backup => (
+                    <tr key={backup.id}>
+                      <td>{new Date(backup.created_at).toLocaleString()}</td>
+                      <td>{backup.aliases_count}</td>
+                      <td>{(backup.size / 1024).toFixed(1)} KB</td>
+                      <td>
+                        <button 
+                          className="delete-backup-button"
+                          onClick={() => handleDeleteServerBackup(backup.id)}
+                          title="Delete backup"
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
         </div>
       </div>
     </div>

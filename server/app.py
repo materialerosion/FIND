@@ -1,6 +1,7 @@
 # server/app.py
 import os
 import pandas as pd
+import datetime
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from models.formula import db, Formula, Ingredient, FormulaIngredient, IngredientAlias
@@ -16,6 +17,8 @@ app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(__file__), 'uploads')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload size
 
 # Ensure uploads directory exists
+BACKUPS_DIR = os.path.join(os.path.dirname(__file__), 'backups')
+os.makedirs(BACKUPS_DIR, exist_ok=True)
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 db.init_app(app)
@@ -45,6 +48,20 @@ def initialize_database_from_excel():
                     'ingredient_number': ingredient.fing_item_number,
                     'alias': alias.alias
                 })
+        
+        # Create an automatic backup if there are aliases
+        if aliases_backup:
+            timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+            backup_filename = f"aliases_backup_{timestamp}.json"
+            backup_path = os.path.join(BACKUPS_DIR, backup_filename)
+            
+            # Ensure backup directory exists
+            os.makedirs(BACKUPS_DIR, exist_ok=True)
+            
+            # Write the backup to a file
+            with open(backup_path, 'w') as f:
+                json.dump(aliases_backup, f, indent=2)
+            print(f"Created automatic backup: {backup_filename}")
         
         # Clear existing data
         print("Clearing existing database records...")
@@ -147,13 +164,22 @@ def initialize_database_from_excel():
                     print(f"Error committing batch at row {index}: {str(e)}")
                     # Continue with the next batch
         
-        # Final commit
+                # Final commit
         try:
             db.session.commit()
         except Exception as e:
             db.session.rollback()
             print(f"Error during final commit: {str(e)}")
             return False
+        
+        # Restore aliases from the latest backup
+        print("Restoring aliases from latest backup...")
+        latest_backup = get_latest_backup()
+        if latest_backup:
+            aliases_restored = restore_aliases_from_backup(latest_backup)
+            print(f"Restored {aliases_restored} aliases from backup")
+        else:
+            print("No backup found to restore aliases from")
         
         print(f"Successfully loaded database from Excel:")
         print(f"  - {len(ingredients_dict)} ingredients")
@@ -168,6 +194,69 @@ def initialize_database_from_excel():
         import traceback
         traceback.print_exc()
         return False
+
+def get_latest_backup():
+    """Get the latest aliases backup from the server"""
+    try:
+        backups = []
+        # List all JSON files in the backups directory
+        if os.path.exists(BACKUPS_DIR):
+            for filename in os.listdir(BACKUPS_DIR):
+                if filename.endswith('.json') and filename.startswith('aliases_backup_'):
+                    file_path = os.path.join(BACKUPS_DIR, filename)
+                    file_stats = os.stat(file_path)
+                    
+                    backups.append({
+                        'path': file_path,
+                        'mtime': file_stats.st_mtime
+                    })
+            
+            # Sort backups by modification time (newest first)
+            if backups:
+                backups.sort(key=lambda x: x['mtime'], reverse=True)
+                latest_backup = backups[0]['path']
+                
+                # Load and return the backup data
+                with open(latest_backup, 'r') as f:
+                    return json.load(f)
+    except Exception as e:
+        print(f"Error getting latest backup: {str(e)}")
+    
+    return None
+
+def restore_aliases_from_backup(aliases_data):
+    """Restore aliases from backup data"""
+    if not aliases_data:
+        return 0
+        
+    aliases_restored = 0
+    
+    for alias_data in aliases_data:
+        # Find the ingredient by name or number
+        ingredient = Ingredient.query.filter(
+            (Ingredient.name == alias_data['ingredient_name']) | 
+            (Ingredient.fing_item_number == alias_data['ingredient_number'])
+        ).first()
+        
+        if ingredient:
+            # Check if this alias already exists for the ingredient
+            existing_alias = IngredientAlias.query.filter_by(
+                ingredient_id=ingredient.id,
+                alias=alias_data['alias']
+            ).first()
+            
+            if not existing_alias:
+                new_alias = IngredientAlias(
+                    alias=alias_data['alias'],
+                    ingredient_id=ingredient.id
+                )
+                db.session.add(new_alias)
+                aliases_restored += 1
+    
+    if aliases_restored > 0:
+        db.session.commit()
+    
+    return aliases_restored
 
 @app.route('/api/formulas', methods=['GET'])
 def get_formulas():
@@ -832,14 +921,33 @@ def upload_excel():
             # Final commit
             db.session.commit()
             
-            return jsonify({
-                'success': True,
-                'message': 'Excel file imported successfully',
-                'ingredients_created': len(ingredients_dict),
-                'formulas_created': len(formulas_dict),
-                'formula_ingredients_created': formula_ingredients_created,
-                'errors': errors
-            })
+            # Restore aliases from the latest backup
+            print("Restoring aliases from latest backup...")
+            latest_backup = get_latest_backup()
+            if latest_backup:
+                aliases_restored = restore_aliases_from_backup(latest_backup)
+                print(f"Restored {aliases_restored} aliases from backup")
+                
+                # Include in the response
+                return jsonify({
+                    'success': True,
+                    'message': 'Excel file imported successfully',
+                    'ingredients_created': len(ingredients_dict),
+                    'formulas_created': len(formulas_dict),
+                    'formula_ingredients_created': formula_ingredients_created,
+                    'aliases_restored': aliases_restored,
+                    'errors': errors
+                })
+            else:
+                return jsonify({
+                    'success': True,
+                    'message': 'Excel file imported successfully',
+                    'ingredients_created': len(ingredients_dict),
+                    'formulas_created': len(formulas_dict),
+                    'formula_ingredients_created': formula_ingredients_created,
+                    'aliases_restored': 0,
+                    'errors': errors
+                })
             
         except Exception as e:
             db.session.rollback()
@@ -881,9 +989,13 @@ def initialize_database():
         success = initialize_database_from_excel()
         
         if success:
+            # Get count of restored aliases
+            aliases_count = IngredientAlias.query.count()
+            
             return jsonify({
                 'success': True,
-                'message': 'Database initialized successfully from Excel file'
+                'message': 'Database initialized successfully from Excel file',
+                'aliases_restored': aliases_count
             })
         else:
             return jsonify({
@@ -895,6 +1007,162 @@ def initialize_database():
             'success': False,
             'error': f'Error initializing database: {str(e)}'
         }), 500
+
+@app.route('/api/aliases/server-backup', methods=['POST'])
+def create_server_backup():
+    try:
+        # Get all aliases with ingredient information
+        aliases = []
+        for alias in IngredientAlias.query.all():
+            ingredient = Ingredient.query.get(alias.ingredient_id)
+            if ingredient:
+                aliases.append({
+                    'ingredient_name': ingredient.name,
+                    'ingredient_number': ingredient.fing_item_number,
+                    'alias': alias.alias
+                })
+        
+        # Create a timestamp for the backup filename
+        timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+        backup_filename = f"aliases_backup_{timestamp}.json"
+        backup_path = os.path.join(BACKUPS_DIR, backup_filename)
+        
+        # Write the backup to a file
+        with open(backup_path, 'w') as f:
+            json.dump(aliases, f, indent=2)
+        
+        return jsonify({
+            'success': True,
+            'message': 'Backup created successfully',
+            'backup_id': timestamp,
+            'filename': backup_filename
+        })
+    except Exception as e:
+        print(f"Error creating backup: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/aliases/server-backups', methods=['GET'])
+def list_server_backups():
+    try:
+        backups = []
+        # List all JSON files in the backups directory
+        for filename in os.listdir(BACKUPS_DIR):
+            if filename.endswith('.json') and filename.startswith('aliases_backup_'):
+                file_path = os.path.join(BACKUPS_DIR, filename)
+                file_stats = os.stat(file_path)
+                
+                # Extract timestamp from filename
+                timestamp = filename.replace('aliases_backup_', '').replace('.json', '')
+                
+                # Get the number of aliases in the backup
+                try:
+                    with open(file_path, 'r') as f:
+                        aliases_count = len(json.load(f))
+                except:
+                    aliases_count = 0
+                
+                backups.append({
+                    'id': timestamp,
+                    'filename': filename,
+                    'created_at': datetime.datetime.fromtimestamp(file_stats.st_mtime).isoformat(),
+                    'size': file_stats.st_size,
+                    'aliases_count': aliases_count
+                })
+        
+        # Sort backups by creation time (newest first)
+        backups.sort(key=lambda x: x['created_at'], reverse=True)
+        
+        return jsonify({
+            'backups': backups
+        })
+    except Exception as e:
+        print(f"Error listing backups: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/aliases/server-restore/<backup_id>', methods=['POST'])
+def restore_server_backup(backup_id):
+    try:
+        # Find the backup file
+        backup_filename = f"aliases_backup_{backup_id}.json"
+        backup_path = os.path.join(BACKUPS_DIR, backup_filename)
+        
+        if not os.path.exists(backup_path):
+            return jsonify({'error': 'Backup not found'}), 404
+        
+        # Load the backup data
+        with open(backup_path, 'r') as f:
+            aliases_data = json.load(f)
+        
+        aliases_restored = 0
+        aliases_skipped = 0
+        
+        # Clear existing aliases if requested
+        clear_existing = request.args.get('clear', 'false').lower() == 'true'
+        if clear_existing:
+            db.session.query(IngredientAlias).delete()
+            db.session.commit()
+        
+        for alias_data in aliases_data:
+            # Find the ingredient by name or number
+            ingredient = Ingredient.query.filter(
+                (Ingredient.name == alias_data['ingredient_name']) | 
+                (Ingredient.fing_item_number == alias_data['ingredient_number'])
+            ).first()
+            
+            if ingredient:
+                # Check if this alias already exists for the ingredient
+                existing_alias = IngredientAlias.query.filter_by(
+                    ingredient_id=ingredient.id,
+                    alias=alias_data['alias']
+                ).first()
+                
+                if not existing_alias:
+                    new_alias = IngredientAlias(
+                        alias=alias_data['alias'],
+                        ingredient_id=ingredient.id
+                    )
+                    db.session.add(new_alias)
+                    aliases_restored += 1
+                else:
+                    aliases_skipped += 1
+            else:
+                aliases_skipped += 1
+        
+        # Commit the restored aliases
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Restored {aliases_restored} aliases successfully',
+            'aliases_restored': aliases_restored,
+            'aliases_skipped': aliases_skipped
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error restoring backup: {str(e)}")
+        return jsonify({'error': f'Error restoring backup: {str(e)}'}), 500
+
+@app.route('/api/aliases/server-backup/<backup_id>', methods=['DELETE'])
+def delete_server_backup(backup_id):
+    try:
+        # Find the backup file
+        backup_filename = f"aliases_backup_{backup_id}.json"
+        backup_path = os.path.join(BACKUPS_DIR, backup_filename)
+        
+        if not os.path.exists(backup_path):
+            return jsonify({'error': 'Backup not found'}), 404
+        
+        # Delete the backup file
+        os.remove(backup_path)
+        
+        return jsonify({
+            'success': True,
+            'message': 'Backup deleted successfully'
+        })
+    except Exception as e:
+        print(f"Error deleting backup: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     with app.app_context():

@@ -233,3 +233,53 @@ export const restoreAliases = async (file) => {
   }
   return response.json();
 };
+
+export const createServerBackup = async () => {
+  const response = await fetch(`${API_URL}/aliases/server-backup`, {
+    method: 'POST',
+  });
+  
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || 'Failed to create server backup');
+  }
+  
+  return response.json();
+};
+
+export const getServerBackups = async () => {
+  const response = await fetch(`${API_URL}/aliases/server-backups`);
+  
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || 'Failed to get server backups');
+  }
+  
+  return response.json();
+};
+
+export const restoreServerBackup = async (backupId, clearExisting = false) => {
+  const response = await fetch(`${API_URL}/aliases/server-restore/${backupId}?clear=${clearExisting}`, {
+    method: 'POST',
+  });
+  
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || 'Failed to restore server backup');
+  }
+  
+  return response.json();
+};
+
+export const deleteServerBackup = async (backupId) => {
+  const response = await fetch(`${API_URL}/aliases/server-backup/${backupId}`, {
+    method: 'DELETE',
+  });
+  
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || 'Failed to delete server backup');
+  }
+  
+  return response.json();
+};

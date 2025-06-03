@@ -693,3 +693,168 @@
     }
   }
 }
+
+.server-backups-section {
+  margin-top: 30px;
+  padding-top: 20px;
+  border-top: 1px solid #eee;
+  
+  h3 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    color: var(--text-color);
+  }
+  
+  .help-text {
+    color: #666;
+    margin-bottom: 20px;
+  }
+  
+  .server-backup-actions {
+    margin-bottom: 20px;
+    
+    .create-backup-button {
+      background-color: #3498db;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      
+      &:hover:not(:disabled) {
+        background-color: darken(#3498db, 10%);
+      }
+      
+      &:disabled {
+        background-color: #ccc;
+        cursor: not-allowed;
+      }
+    }
+  }
+  
+  .server-backup-restore {
+    background-color: #f9f9f9;
+    border-radius: 6px;
+    padding: 15px;
+    margin-bottom: 20px;
+    
+    h4 {
+      margin-top: 0;
+      margin-bottom: 15px;
+      font-size: 1rem;
+      color: #555;
+    }
+    
+    .restore-options {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      
+      .select-backup {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        
+        label {
+          font-weight: 500;
+          font-size: 0.9rem;
+        }
+        
+        select {
+          padding: 8px;
+          border: 1px solid #ddd;
+          border-radius: 4px;
+          
+          &:focus {
+            outline: none;
+            border-color: var(--primary-color);
+          }
+          
+          &:disabled {
+            background-color: #f5f5f5;
+            cursor: not-allowed;
+          }
+        }
+      }
+      
+      .restore-option {
+        display: flex;
+        align-items: center;
+        
+        label {
+          display: flex;
+          align-items: center;
+          gap: 5px;
+          cursor: pointer;
+          
+          input[type="checkbox"] {
+            cursor: pointer;
+          }
+        }
+      }
+      
+      .restore-button {
+        background-color: #9b59b6;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 4px;
+        cursor: pointer;
+        align-self: flex-start;
+        
+        &:hover:not(:disabled) {
+          background-color: darken(#9b59b6, 10%);
+        }
+        
+        &:disabled {
+          background-color: #ccc;
+          cursor: not-allowed;
+        }
+      }
+    }
+  }
+  
+  .server-backups-list {
+    h4 {
+      margin-top: 0;
+      margin-bottom: 15px;
+      font-size: 1rem;
+      color: #555;
+    }
+    
+    .backups-table {
+      width: 100%;
+      border-collapse: collapse;
+      
+      th, td {
+        padding: 10px;
+        text-align: left;
+        border-bottom: 1px solid #eee;
+      }
+      
+      th {
+        font-weight: 600;
+        color: #555;
+        background-color: #f5f5f5;
+      }
+      
+      tr:hover {
+        background-color: #f9f9f9;
+      }
+      
+      .delete-backup-button {
+        background-color: #e74c3c;
+        color: white;
+        border: none;
+        padding: 5px 10px;
+        border-radius: 3px;
+        cursor: pointer;
+        font-size: 0.8rem;
+        
+        &:hover {
+          background-color: darken(#e74c3c, 10%);
+        }
+      }
+    }
+  }
+}
