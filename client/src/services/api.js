@@ -1,4 +1,5 @@
-const API_URL = '/api';
+// client/src/services/api.js
+const API_URL = '/api'; // Changed from localhost to relative URL for deployment
 
 export const getFormulas = async (page = 1, perPage = 20, filters = {}) => {
   let url = `${API_URL}/formulas?page=${page}&per_page=${perPage}`;
@@ -27,20 +28,21 @@ export const getFormulaById = async (id) => {
 export const searchFormulas = async (searchParams, page = 1, perPage = 20) => {
   let url = `${API_URL}/formulas/search?page=${page}&per_page=${perPage}`;
   
-  // Add ingredient search parameters
-  if (searchParams.ingredients && searchParams.ingredients.length > 0) {
-    searchParams.ingredients.forEach((ing, index) => {
-      url += `&ingredient${index+1}=${encodeURIComponent(ing)}`;
+  // Add ingredient search parameters with coupled amount ranges
+  if (searchParams.ingredientFilters && searchParams.ingredientFilters.length > 0) {
+    searchParams.ingredientFilters.forEach((filter, index) => {
+      if (filter.name) {
+        url += `&ingredient${index+1}=${encodeURIComponent(filter.name)}`;
+        
+        if (filter.minAmount) {
+          url += `&min_amount${index+1}=${encodeURIComponent(filter.minAmount)}`;
+        }
+        
+        if (filter.maxAmount) {
+          url += `&max_amount${index+1}=${encodeURIComponent(filter.maxAmount)}`;
+        }
+      }
     });
-  }
-  
-  // Add amount filters
-  if (searchParams.minAmount) {
-    url += `&min_amount=${encodeURIComponent(searchParams.minAmount)}`;
-  }
-  
-  if (searchParams.maxAmount) {
-    url += `&max_amount=${encodeURIComponent(searchParams.maxAmount)}`;
   }
   
   // Add other filters
@@ -64,6 +66,7 @@ export const searchFormulas = async (searchParams, page = 1, perPage = 20) => {
   return response.json();
 };
 
+// Rest of the API service remains the same...
 export const uploadDatabase = async (file) => {
   const formData = new FormData();
   formData.append('file', file);
@@ -129,7 +132,6 @@ export const getDatabaseStatus = async () => {
   return response.json();
 };
 
-// Get available filter options
 export const getFilterOptions = async () => {
   const response = await fetch(`${API_URL}/filter-options`);
   if (!response.ok) {

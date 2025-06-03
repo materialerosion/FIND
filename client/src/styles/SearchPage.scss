@@ -28,37 +28,82 @@
       
       .ingredient-row {
         display: flex;
-        margin-bottom: 10px;
+        flex-wrap: wrap;
+        margin-bottom: 20px;
+        padding-bottom: 15px;
+        border-bottom: 1px dashed #eee;
+        position: relative;
         
-        .ingredient-input {
-          flex: 1;
-          padding: 10px;
-          border: 1px solid #ddd;
-          border-radius: 4px;
-          font-size: 16px;
+        .ingredient-input-group {
+          flex: 2;
+          margin-right: 15px;
           
-          &:focus {
-            outline: none;
-            border-color: var(--primary-color);
-            box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+          label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            font-size: 0.9rem;
+          }
+          
+          .ingredient-input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+            
+            &:focus {
+              outline: none;
+              border-color: var(--primary-color);
+              box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+            }
+          }
+        }
+        
+        .amount-inputs {
+          display: flex;
+          flex: 3;
+          gap: 10px;
+          
+          .amount-input-group {
+            flex: 1;
+            
+            label {
+              display: block;
+              margin-bottom: 8px;
+              font-weight: 500;
+              font-size: 0.9rem;
+            }
+            
+            .amount-input {
+              width: 100%;
+              padding: 10px;
+              border: 1px solid #ddd;
+              border-radius: 4px;
+              font-size: 16px;
+              
+              &:focus {
+                outline: none;
+                border-color: var(--primary-color);
+                box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+              }
+            }
           }
         }
         
         .remove-ingredient {
-          background-color: #f8f8f8;
-          border: 1px solid #ddd;
-          border-radius: 4px;
-          margin-left: 10px;
-          width: 36px;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 16px;
+          position: absolute;
+          top: 0;
+          right: 0;
+          background-color: transparent;
+          border: none;
           color: #e74c3c;
+          font-size: 18px;
+          cursor: pointer;
+          padding: 5px;
           
           &:hover {
-            background-color: #f1f1f1;
+            color: darken(#e74c3c, 10%);
           }
         }
       }
@@ -66,11 +111,12 @@
       .add-ingredient {
         background-color: #f8f8f8;
         border: 1px solid #ddd;
-        padding: 8px 15px;
+        padding: 10px 15px;
         border-radius: 4px;
         cursor: pointer;
         color: var(--primary-color);
         font-weight: 500;
+        margin-top: 10px;
         
         &:hover {
           background-color: #f1f1f1;
@@ -146,6 +192,15 @@
       .form-row {
         flex-direction: column;
         gap: 15px;
+      }
+      
+      .ingredient-row {
+        flex-direction: column;
+        
+        .ingredient-input-group {
+          margin-right: 0;
+          margin-bottom: 15px;
+        }
       }
     }
   }

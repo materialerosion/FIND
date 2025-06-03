@@ -5,9 +5,9 @@ import FormulaCard from '../components/FormulaCard';
 import '../styles/SearchPage.scss';
 
 function SearchPage() {
-  const [ingredients, setIngredients] = useState(['']);
-  const [minAmount, setMinAmount] = useState('');
-  const [maxAmount, setMaxAmount] = useState('');
+  const [ingredientInputs, setIngredientInputs] = useState([
+    { name: '', minAmount: '', maxAmount: '' }
+  ]);
   const [brand, setBrand] = useState('');
   const [category, setCategory] = useState('');
   const [lifecyclePhase, setLifecyclePhase] = useState('');
@@ -45,13 +45,11 @@ function SearchPage() {
     setCurrentPage(1);
     
     // Filter out empty ingredient inputs
-    const filteredIngredients = ingredients.filter(ing => ing.trim() !== '');
+    const filteredIngredients = ingredientInputs.filter(ing => ing.name.trim() !== '');
     
     try {
       const searchParams = {
-        ingredients: filteredIngredients,
-        minAmount,
-        maxAmount,
+        ingredientFilters: filteredIngredients,
         brand,
         category,
         lifecyclePhase
@@ -72,11 +70,9 @@ function SearchPage() {
     setCurrentPage(newPage);
     
     try {
-      const filteredIngredients = ingredients.filter(ing => ing.trim() !== '');
+      const filteredIngredients = ingredientInputs.filter(ing => ing.name.trim() !== '');
       const searchParams = {
-        ingredients: filteredIngredients,
-        minAmount,
-        maxAmount,
+        ingredientFilters: filteredIngredients,
         brand,
         category,
         lifecyclePhase
@@ -94,19 +90,19 @@ function SearchPage() {
   };
 
   const addIngredientField = () => {
-    setIngredients([...ingredients, '']);
+    setIngredientInputs([...ingredientInputs, { name: '', minAmount: '', maxAmount: '' }]);
   };
 
   const removeIngredientField = (index) => {
-    const newIngredients = [...ingredients];
+    const newIngredients = [...ingredientInputs];
     newIngredients.splice(index, 1);
-    setIngredients(newIngredients);
+    setIngredientInputs(newIngredients);
   };
 
-  const updateIngredient = (index, value) => {
-    const newIngredients = [...ingredients];
-    newIngredients[index] = value;
-    setIngredients(newIngredients);
+  const updateIngredientInput = (index, field, value) => {
+    const newIngredients = [...ingredientInputs];
+    newIngredients[index] = { ...newIngredients[index], [field]: value };
+    setIngredientInputs(newIngredients);
   };
 
   return (
@@ -117,20 +113,49 @@ function SearchPage() {
         <div className="form-section">
           <h3>Ingredients</h3>
           <div className="ingredients-container">
-            {ingredients.map((ingredient, index) => (
+            {ingredientInputs.map((input, index) => (
               <div key={index} className="ingredient-row">
-                <input 
-                  type="text" 
-                  value={ingredient} 
-                  onChange={(e) => updateIngredient(index, e.target.value)}
-                  placeholder={`Enter ingredient ${index + 1}`}
-                  className="ingredient-input"
-                />
-                {ingredients.length > 1 && (
+                <div className="ingredient-input-group">
+                  <label>Ingredient Name</label>
+                  <input 
+                    type="text" 
+                    value={input.name} 
+                    onChange={(e) => updateIngredientInput(index, 'name', e.target.value)}
+                    placeholder={`Enter ingredient ${index + 1}`}
+                    className="ingredient-input"
+                  />
+                </div>
+                
+                <div className="amount-inputs">
+                  <div className="amount-input-group">
+                    <label>Min Amount</label>
+                    <input 
+                      type="number" 
+                      value={input.minAmount} 
+                      onChange={(e) => updateIngredientInput(index, 'minAmount', e.target.value)}
+                      placeholder="Min"
+                      className="amount-input"
+                    />
+                  </div>
+                  
+                  <div className="amount-input-group">
+                    <label>Max Amount</label>
+                    <input 
+                      type="number" 
+                      value={input.maxAmount} 
+                      onChange={(e) => updateIngredientInput(index, 'maxAmount', e.target.value)}
+                      placeholder="Max"
+                      className="amount-input"
+                    />
+                  </div>
+                </div>
+                
+                {ingredientInputs.length > 1 && (
                   <button 
                     type="button" 
                     onClick={() => removeIngredientField(index)}
                     className="remove-ingredient"
+                    aria-label="Remove ingredient"
                   >
                     ✕
                   </button>
@@ -144,31 +169,6 @@ function SearchPage() {
             >
               + Add Another Ingredient
             </button>
-          </div>
-        </div>
-        
-        <div className="form-section">
-          <h3>Amount Range</h3>
-          <div className="form-row">
-            <div className="form-group">
-              <label>Min Amount</label>
-              <input 
-                type="number" 
-                value={minAmount} 
-                onChange={(e) => setMinAmount(e.target.value)}
-                placeholder="Minimum amount"
-              />
-            </div>
-            
-            <div className="form-group">
-              <label>Max Amount</label>
-              <input 
-                type="number" 
-                value={maxAmount} 
-                onChange={(e) => setMaxAmount(e.target.value)}
-                placeholder="Maximum amount"
-              />
-            </div>
           </div>
         </div>
         

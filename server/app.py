@@ -281,7 +281,7 @@ def search_formulas():
         # Start with a base query
         query = Formula.query
         
-        # Check for multiple ingredients
+        # Check for multiple ingredients with coupled amount ranges
         ingredient_filters = []
         i = 1
         while True:
@@ -291,25 +291,45 @@ def search_formulas():
                 if i == 1:
                     ingredient_param = request.args.get('ingredient')
                     if ingredient_param:
-                        ingredient_filters.append(Ingredient.name.ilike(f'%{ingredient_param}%'))
+                        min_amount = request.args.get('min_amount')
+                        max_amount = request.args.get('max_amount')
+                        ingredient_filters.append({
+                            'name': ingredient_param,
+                            'min_amount': min_amount,
+                            'max_amount': max_amount
+                        })
                 break
             
-            ingredient_filters.append(Ingredient.name.ilike(f'%{ingredient_param}%'))
+            min_amount = request.args.get(f'min_amount{i}')
+            max_amount = request.args.get(f'max_amount{i}')
+            
+            ingredient_filters.append({
+                'name': ingredient_param,
+                'min_amount': min_amount,
+                'max_amount': max_amount
+            })
             i += 1
         
         # If we have ingredient filters, apply them
         if ingredient_filters:
-            # For each ingredient, we need to find formulas that contain it
+            # For each ingredient, we need to find formulas that contain it with the specified amount range
             formula_ids_with_all_ingredients = None
             
             for ingredient_filter in ingredient_filters:
-                # Find formulas with this ingredient
+                # Start with a base subquery for this ingredient
                 subquery = db.session.query(FormulaIngredient.formula_id)\
                     .join(Ingredient, FormulaIngredient.ingredient_id == Ingredient.id)\
-                    .filter(ingredient_filter)\
-                    .distinct()
+                    .filter(Ingredient.name.ilike(f'%{ingredient_filter["name"]}%'))
                 
-                formula_ids_with_ingredient = [r[0] for r in subquery.all()]
+                # Apply amount filters for this specific ingredient
+                if ingredient_filter['min_amount']:
+                    subquery = subquery.filter(FormulaIngredient.amount >= float(ingredient_filter['min_amount']))
+                
+                if ingredient_filter['max_amount']:
+                    subquery = subquery.filter(FormulaIngredient.amount <= float(ingredient_filter['max_amount']))
+                
+                # Get distinct formula IDs that match this ingredient filter
+                formula_ids_with_ingredient = [r[0] for r in subquery.distinct().all()]
                 
                 # Intersect with previous results
                 if formula_ids_with_all_ingredients is None:
@@ -337,20 +357,6 @@ def search_formulas():
                         'has_prev': False
                     }
                 })
-        
-        # Apply amount filters if specified
-        min_amount = request.args.get('min_amount')
-        max_amount = request.args.get('max_amount')
-        
-        if min_amount or max_amount:
-            # We need to filter by amount, which requires joining to FormulaIngredient
-            query = query.join(FormulaIngredient)
-            
-            if min_amount:
-                query = query.filter(FormulaIngredient.amount >= float(min_amount))
-            
-            if max_amount:
-                query = query.filter(FormulaIngredient.amount <= float(max_amount))
         
         # Apply other filters
         brand = request.args.get('brand')

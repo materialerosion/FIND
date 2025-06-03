@@ -10,6 +10,7 @@ function FormulaList() {
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [noResultsWithFilters, setNoResultsWithFilters] = useState(false);
   
   // Filter states
   const [filterOptions, setFilterOptions] = useState({
@@ -43,11 +44,19 @@ function FormulaList() {
     const fetchFormulas = async () => {
       setLoading(true);
       setError(null);
+      setNoResultsWithFilters(false);
       
       try {
         const data = await getFormulas(currentPage, 20, selectedFilters);
         setFormulas(data.formulas);
         setPagination(data.pagination);
+        
+        // Check if we have no results but filters are applied
+        const hasActiveFilters = Object.values(selectedFilters).some(filter => filter !== '');
+        if (data.formulas.length === 0 && hasActiveFilters) {
+          setNoResultsWithFilters(true);
+        }
+        
         setLoading(false);
       } catch (error) {
         console.error('Error fetching formulas:', error);
@@ -85,7 +94,7 @@ function FormulaList() {
     setShowFilters(!showFilters);
   };
 
-  if (loading && formulas.length === 0) {
+  if (loading && formulas.length === 0 && !noResultsWithFilters) {
     return <div className="loading">Loading formulas...</div>;
   }
 
@@ -93,18 +102,10 @@ function FormulaList() {
     return <div className="error">{error}</div>;
   }
 
-  if (formulas.length === 0 && !loading) {
-    return (
-      <div className="formula-list empty">
-        <h1>Formula Database</h1>
-        <div className="empty-state">
-          <p>No formulas found in the database.</p>
-          <p>Please upload data via the Database management page.</p>
-          <Link to="/database" className="database-link">Go to Database Management</Link>
-        </div>
-      </div>
-    );
-  }
+  // Check if database is empty (no filters applied and no results)
+  const isDatabaseEmpty = formulas.length === 0 && 
+                         !Object.values(selectedFilters).some(filter => filter !== '') && 
+                         !noResultsWithFilters;
 
   return (
     <div className="formula-list">
@@ -167,60 +168,83 @@ function FormulaList() {
         </div>
       )}
       
-      {pagination && (
-        <div className="formula-stats">
-          <p>Showing {formulas.length} of {pagination.total} formulas (Page {pagination.current_page} of {pagination.pages})</p>
+      {isDatabaseEmpty ? (
+        <div className="empty-state">
+          <p>No formulas found in the database.</p>
+          <p>Please upload data via the Database management page.</p>
+          <Link to="/database" className="database-link">Go to Database Management</Link>
         </div>
-      )}
-      
-      {loading && <div className="loading-overlay">Loading...</div>}
-      
-      <div className="formula-grid">
-        {formulas.map(formula => (
-          <Link to={`/formula/${formula.id}`} key={formula.id}>
-            <FormulaCard formula={formula} />
-          </Link>
-        ))}
-      </div>
-      
-      {pagination && pagination.pages > 1 && (
-        <div className="pagination">
-          <button 
-            onClick={() => handlePageChange(1)} 
-            disabled={currentPage === 1}
-            className="pagination-button"
-          >
-            First
-          </button>
+      ) : (
+        <>
+          {noResultsWithFilters && (
+            <div className="no-results-message">
+              <p>No formulas found with the selected filters.</p>
+              <button onClick={clearFilters} className="clear-filters-btn">
+                Clear Filters
+              </button>
+            </div>
+          )}
           
-          <button 
-            onClick={() => handlePageChange(currentPage - 1)} 
-            disabled={!pagination.has_prev}
-            className="pagination-button"
-          >
-            Previous
-          </button>
-          
-          <span className="pagination-info">
-            Page {pagination.current_page} of {pagination.pages}
-          </span>
-          
-          <button 
-            onClick={() => handlePageChange(currentPage + 1)} 
-            disabled={!pagination.has_next}
-            className="pagination-button"
-          >
-            Next
-          </button>
-          
-          <button 
-            onClick={() => handlePageChange(pagination.pages)} 
-            disabled={currentPage === pagination.pages}
-            className="pagination-button"
-          >
-            Last
-          </button>
-        </div>
+          {formulas.length > 0 && (
+            <>
+              {pagination && (
+                <div className="formula-stats">
+                  <p>Showing {formulas.length} of {pagination.total} formulas (Page {pagination.current_page} of {pagination.pages})</p>
+                </div>
+              )}
+              
+              {loading && <div className="loading-overlay">Loading...</div>}
+              
+              <div className="formula-grid">
+                {formulas.map(formula => (
+                  <Link to={`/formula/${formula.id}`} key={formula.id}>
+                    <FormulaCard formula={formula} />
+                  </Link>
+                ))}
+              </div>
+              
+              {pagination && pagination.pages > 1 && (
+                <div className="pagination">
+                  <button 
+                    onClick={() => handlePageChange(1)} 
+                    disabled={currentPage === 1}
+                    className="pagination-button"
+                  >
+                    First
+                  </button>
+                  
+                  <button 
+                    onClick={() => handlePageChange(currentPage - 1)} 
+                    disabled={!pagination.has_prev}
+                    className="pagination-button"
+                  >
+                    Previous
+                  </button>
+                  
+                  <span className="pagination-info">
+                    Page {pagination.current_page} of {pagination.pages}
+                  </span>
+                  
+                  <button 
+                    onClick={() => handlePageChange(currentPage + 1)} 
+                    disabled={!pagination.has_next}
+                    className="pagination-button"
+                  >
+                    Next
+                  </button>
+                  
+                  <button 
+                    onClick={() => handlePageChange(pagination.pages)} 
+                    disabled={currentPage === pagination.pages}
+                    className="pagination-button"
+                  >
+                    Last
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </>
       )}
     </div>
   );
