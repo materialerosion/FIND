@@ -13,8 +13,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read #This is required for actions/checkout
 
     steps:
       - uses: actions/checkout@v4
@@ -26,38 +24,19 @@ jobs:
 
       - name: Create and start virtual environment
         run: |
-          python -m venv venv
-          source venv/bin/activate
+          python -m venv antenv
+          source antenv/bin/activate
       
       - name: Install dependencies
         run: |
-          cd server
-          pip install -r requirements.txt
+          source antenv/bin/activate
+          pip install -r server/requirements.txt
         
-      # Optional: Add step to run tests here (PyTest, Django test suites, etc.)
-
-      - name: Prepare for deployment
-        run: |
-          # Create a deployment structure that matches what we want in Azure
-          mkdir -p deploy
-          cp -r server/* deploy/
-          
-          # Create a startup script
-          echo '#!/bin/bash' > deploy/startup.sh
-          echo 'cd /home/site/wwwroot' >> deploy/startup.sh
-          echo 'pip install -r requirements.txt' >> deploy/startup.sh
-          echo 'python app.py' >> deploy/startup.sh
-          chmod +x deploy/startup.sh
-          
-          # Zip the deployment package
-          cd deploy
-          zip -r ../deploy.zip .
-
       - name: Upload artifact for deployment jobs
         uses: actions/upload-artifact@v4
         with:
           name: python-app
-          path: deploy.zip
+          path: server/
 
   deploy:
     runs-on: ubuntu-latest
@@ -72,11 +51,6 @@ jobs:
         with:
           name: python-app
 
-      - name: Unzip artifact for deployment
-        run: |
-          unzip deploy.zip -d deploy
-          ls -la deploy
-
       - name: 'Deploy to Azure Web App'
         uses: azure/webapps-deploy@v3
         id: deploy-to-webapp
@@ -84,4 +58,3 @@ jobs:
           app-name: 'find-b'
           slot-name: 'Production'
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_D7EC578762B3470AB75DE31B508CB405 }}
-          package: deploy
