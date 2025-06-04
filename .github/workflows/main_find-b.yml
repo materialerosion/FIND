@@ -33,17 +33,27 @@ jobs:
         
       # Optional: Add step to run tests here (PyTest, Django test suites, etc.)
 
-      - name: Zip artifact for deployment
+      - name: Prepare deployment package
         run: |
-          cd server  # Navigate to the server directory
-          zip -r ../release.zip .  # Zip all files in the server directory
+          mkdir -p deployment
+          cp -r server/* deployment/
+          cp server/requirements.txt deployment/
+          
+          # Create a startup script
+          echo "#!/bin/bash" > deployment/startup.sh
+          echo "cd /home/site/wwwroot" >> deployment/startup.sh
+          echo "pip install -r requirements.txt" >> deployment/startup.sh
+          echo "python app.py" >> deployment/startup.sh
+          chmod +x deployment/startup.sh
+          
+          cd deployment
+          zip -r ../app.zip .
+
       - name: Upload artifact for deployment jobs
         uses: actions/upload-artifact@v4
         with:
           name: python-app
-          path: |
-            release.zip
-            !venv/
+          path: app.zip
 
   deploy:
     runs-on: ubuntu-latest
@@ -59,8 +69,7 @@ jobs:
           name: python-app
 
       - name: Unzip artifact for deployment
-        run: unzip release.zip
-
+        run: unzip app.zip
       
       - name: 'Deploy to Azure Web App'
         uses: azure/webapps-deploy@v3
