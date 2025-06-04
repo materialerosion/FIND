@@ -24,36 +24,40 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Create and start virtual environment and install dependencies
+      - name: Create and start virtual environment
         run: |
-          cd server
           python -m venv venv
           source venv/bin/activate
+      
+      - name: Install dependencies
+        run: |
+          cd server
           pip install -r requirements.txt
         
       # Optional: Add step to run tests here (PyTest, Django test suites, etc.)
 
-      - name: Prepare deployment package
+      - name: Prepare for deployment
         run: |
-          mkdir -p deployment
-          cp -r server/* deployment/
-          cp server/requirements.txt deployment/
+          # Create a deployment structure that matches what we want in Azure
+          mkdir -p deploy
+          cp -r server/* deploy/
           
           # Create a startup script
-          echo "#!/bin/bash" > deployment/startup.sh
-          echo "cd /home/site/wwwroot" >> deployment/startup.sh
-          echo "pip install -r requirements.txt" >> deployment/startup.sh
-          echo "python app.py" >> deployment/startup.sh
-          chmod +x deployment/startup.sh
+          echo '#!/bin/bash' > deploy/startup.sh
+          echo 'cd /home/site/wwwroot' >> deploy/startup.sh
+          echo 'pip install -r requirements.txt' >> deploy/startup.sh
+          echo 'python app.py' >> deploy/startup.sh
+          chmod +x deploy/startup.sh
           
-          cd deployment
-          zip -r ../app.zip .
+          # Zip the deployment package
+          cd deploy
+          zip -r ../deploy.zip .
 
       - name: Upload artifact for deployment jobs
         uses: actions/upload-artifact@v4
         with:
           name: python-app
-          path: app.zip
+          path: deploy.zip
 
   deploy:
     runs-on: ubuntu-latest
@@ -69,8 +73,10 @@ jobs:
           name: python-app
 
       - name: Unzip artifact for deployment
-        run: unzip app.zip
-      
+        run: |
+          unzip deploy.zip -d deploy
+          ls -la deploy
+
       - name: 'Deploy to Azure Web App'
         uses: azure/webapps-deploy@v3
         id: deploy-to-webapp
@@ -78,3 +84,4 @@ jobs:
           app-name: 'find-b'
           slot-name: 'Production'
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_D7EC578762B3470AB75DE31B508CB405 }}
+          package: deploy
