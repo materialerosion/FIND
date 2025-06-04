@@ -1,5 +1,4 @@
-// client/src/services/api.js
-const API_URL = '/api'; // Changed from localhost to relative URL for deployment
+const API_URL = process.env.REACT_APP_API_URL || '/api';
 
 export const getFormulas = async (page = 1, perPage = 20, filters = {}) => {
   let url = `${API_URL}/formulas?page=${page}&per_page=${perPage}`;

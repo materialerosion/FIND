@@ -1,4 +1,3 @@
-# server/app.py
 import os
 import pandas as pd
 import datetime
@@ -10,7 +9,10 @@ from werkzeug.utils import secure_filename
 import json
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, origins=[
+    "https://victorious-field-0dec9f70f.6.azurestaticapps.net/", 
+    "http://localhost:3000"
+])
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///formulas.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(__file__), 'uploads')
@@ -1181,4 +1183,6 @@ if __name__ == '__main__':
         else:
             print("Failed to initialize database from Excel file.")
 
-    app.run(debug=True, port=5000)
+    debug_mode = os.environ.get('FLASK_DEBUG', 'True').lower() == 'true'
+    port = int(os.environ.get('PORT', 5000))
+    app.run(debug=debug_mode, host='0.0.0.0', port=port)
