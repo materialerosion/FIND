@@ -30,18 +30,12 @@ jobs:
           source venv/bin/activate
       
       - name: Install dependencies
-        run: |
-          source venv/bin/activate
-          cd server
-          pip install -r requirements.txt
+        run: pip install -r requirements.txt
         
-      - name: Make run.sh executable
-        run: chmod +x run.sh
-
       # Optional: Add step to run tests here (PyTest, Django test suites, etc.)
 
       - name: Zip artifact for deployment
-        run: zip -r release.zip ./* 
+        run: zip release.zip ./* -r
 
       - name: Upload artifact for deployment jobs
         uses: actions/upload-artifact@v4
@@ -70,10 +64,18 @@ jobs:
       - name: Unzip artifact for deployment
         run: unzip release.zip
 
+      
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_F73512DE711240C59AF542A31864A964 }}
+          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_3898B90B49C74CCD85EE50C92B8DBBFB }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_612123B8DA414D19AC78A3690D1DB3F0 }}
+
       - name: 'Deploy to Azure Web App'
         uses: azure/webapps-deploy@v3
         id: deploy-to-webapp
         with:
           app-name: 'find-b'
           slot-name: 'Production'
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_D7EC578762B3470AB75DE31B508CB405 }}
+          
