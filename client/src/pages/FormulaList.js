@@ -197,7 +197,7 @@ function FormulaList() {
               
               <div className="formula-grid">
                 {formulas.map(formula => (
-                  <Link to={`/formula/${formula.id}`} key={formula.id}>
+                  <Link to={`/formula/${formula.object_number}`} key={formula.id}>
                     <FormulaCard formula={formula} />
                   </Link>
                 ))}

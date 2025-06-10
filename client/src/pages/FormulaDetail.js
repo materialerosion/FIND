@@ -5,7 +5,7 @@ import { getFormulaById } from '../services/api';
 import '../styles/FormulaDetail.scss';
 
 function FormulaDetail() {
-  const { id } = useParams();
+  const { objectNumber } = useParams();
   const [formula, setFormula] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -13,7 +13,7 @@ function FormulaDetail() {
   useEffect(() => {
     const fetchFormula = async () => {
       try {
-        const data = await getFormulaById(id);
+        const data = await getFormulaById(objectNumber);
         setFormula(data);
         setLoading(false);
       } catch (error) {
@@ -24,7 +24,7 @@ function FormulaDetail() {
     };
 
     fetchFormula();
-  }, [id]);
+  }, [objectNumber]);
 
   if (loading) {
     return <div className="loading">Loading formula details...</div>;
@@ -37,6 +37,9 @@ function FormulaDetail() {
   if (!formula) {
     return <div className="not-found">Formula not found</div>;
   }
+
+  // Generate the Doris URL with the formula's object number
+  const dorisUrl = `https://bayer-doris.veevavault.com/ui/#t/0TB000000000102/all?ivp=1&ivv=COMPACT&fcah=documentationGroup%2Cproduct%2CdocumentType%2Cstatus&initSrch=false&search=%257B%2522text%2522%253A%2522${formula.object_number}%2522%257D&ivr=0&iv=1&ivo=desc&ivs=&fcac=&allStudiesSites=&sm=112767931749564107788&smart=true&fcl=&fct=documentType%3Aquality`;
 
   return (
     <div className="formula-detail">
@@ -54,7 +57,6 @@ function FormulaDetail() {
             <span className="value">{formula.formula_brand}</span>
           </div>
           
-// client/src/pages/FormulaDetail.js (continued)
           <div className="meta-item">
             <span className="label">Lifecycle Phase:</span>
             <span className={`value phase ${formula.lifecycle_phase?.toLowerCase()}`}>
@@ -74,24 +76,34 @@ function FormulaDetail() {
         </div>
       </div>
       
+        <div className="external-links">
+          <a href={dorisUrl} target="_blank" rel="noopener noreferrer" className="doris-link">
+            <span className="icon">📄</span> Regulatory Documents via Doris
+          </a>
+        </div>
+
       {(formula.predecessor_formulation_number || formula.successor_formulation_number) && (
         <div className="formula-relations">
           {formula.predecessor_formulation_number && (
-            <div className="relation predecessor">
+            <div className="relation successor">
               <span className="label">Predecessor:</span>
-              <span className="value">{formula.predecessor_formulation_number}</span>
+              <Link to={`/formula/${formula.predecessor_formulation_number}`} className="value predecessor-link">
+                {formula.predecessor_formulation_number}
+              </Link>
             </div>
           )}
           
           {formula.successor_formulation_number && (
             <div className="relation successor">
               <span className="label">Successor:</span>
-              <span className="value">{formula.successor_formulation_number}</span>
+              <Link to={`/formula/${formula.successor_formulation_number}`} className="value successor-link">
+                {formula.successor_formulation_number}
+              </Link>
             </div>
           )}
         </div>
       )}
-      
+
       {formula.regulatory_comments && (
         <div className="comments regulatory">
           <h3>Regulatory Comments</h3>

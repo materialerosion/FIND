@@ -16,8 +16,8 @@ export const getFormulas = async (page = 1, perPage = 20, filters = {}) => {
   return response.json();
 };
 
-export const getFormulaById = async (id) => {
-  const response = await fetch(`${API_URL}/formulas/${id}`);
+export const getFormulaById = async (objectNumber) => {
+  const response = await fetch(`${API_URL}/formulas/${objectNumber}`);
   if (!response.ok) {
     throw new Error('Failed to fetch formula');
   }

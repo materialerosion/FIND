@@ -17,7 +17,7 @@ function App() {
         <div className="container">
           <Routes>
             <Route path="/" element={<FormulaList />} />
-            <Route path="/formula/:id" element={<FormulaDetail />} />
+            <Route path="/formula/:objectNumber" element={<FormulaDetail />} />
             <Route path="/search" element={<SearchPage />} />
             <Route path="/database" element={<DatabaseManagement />} />
             <Route path="/aliases" element={<AliasManagement />} />

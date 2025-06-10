@@ -340,9 +340,9 @@ def get_formulas():
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/formulas/<int:formula_id>', methods=['GET'])
-def get_formula(formula_id):
-    formula = Formula.query.get_or_404(formula_id)
+@app.route('/api/formulas/<object_number>', methods=['GET'])
+def get_formula(object_number):
+    formula = Formula.query.filter_by(object_number=object_number).first_or_404()
     
     formula_data = {
         'id': formula.id,
