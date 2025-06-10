@@ -39,7 +39,8 @@ function FormulaDetail() {
   }
 
   // Generate the Doris URL with the formula's object number
-  const dorisUrl = `https://bayer-doris.veevavault.com/ui/#t/0TB000000000102/all?ivp=1&ivv=COMPACT&fcah=documentationGroup%2Cproduct%2CdocumentType%2Cstatus&initSrch=false&search=%257B%2522text%2522%253A%2522${formula.object_number}%2522%257D&ivr=0&iv=1&ivo=desc&ivs=&fcac=&allStudiesSites=&sm=112767931749564107788&smart=true&fcl=&fct=documentType%3Aquality`;
+  const dorisQualUrl = `https://bayer-doris.veevavault.com/ui/#t/0TB000000000102/all?ivp=1&ivv=COMPACT&fcah=documentationGroup%2Cproduct%2CdocumentType%2Cstatus&initSrch=false&search=%257B%2522text%2522%253A%2522${formula.object_number}%2522%257D&ivr=0&iv=1&ivo=desc&ivs=&fcac=&allStudiesSites=&sm=112767931749564107788&smart=true&fcl=&fct=documentType%3Aquality`;
+  const dorisUrl = `https://bayer-doris.veevavault.com/ui/#t/0TB000000000102/all?ivp=1&ivv=COMPACT&fcah=documentationGroup%2Cproduct%2CdocumentType%2Cstatus&initSrch=false&search=%257B%2522text%2522%253A%2522${formula.object_number}%2522%257D&ivr=0&iv=1&ivo=desc&ivs=&fcac=&allStudiesSites=&sm=112767931749570300723&smart=true`;
 
   return (
     <div className="formula-detail">
@@ -49,7 +50,7 @@ function FormulaDetail() {
       
       <div className="formula-header">
         <h1>{formula.formulation_name}</h1>
-        <div className="formula-number">Object Number: {formula.object_number}</div>
+        <div className="formula-number">Formula Number: {formula.object_number}</div>
         
         <div className="formula-meta">
           <div className="meta-item">
@@ -77,8 +78,12 @@ function FormulaDetail() {
       </div>
       
         <div className="external-links">
+          <a href={dorisQualUrl} target="_blank" rel="noopener noreferrer" className="doris-link">
+            <span className="icon">📄</span> Quality Documents via Doris
+          </a>
+          
           <a href={dorisUrl} target="_blank" rel="noopener noreferrer" className="doris-link">
-            <span className="icon">📄</span> Regulatory Documents via Doris
+            <span className="icon">📃</span> All Regulatory Documents
           </a>
         </div>
 
