@@ -81,7 +81,7 @@ function FormulaDetail() {
           <a href={dorisQualUrl} target="_blank" rel="noopener noreferrer" className="doris-link">
             <span className="icon">📄</span> Quality Documents via Doris
           </a>
-          
+          &nbsp;
           <a href={dorisUrl} target="_blank" rel="noopener noreferrer" className="doris-link">
             <span className="icon">📃</span> All Regulatory Documents
           </a>

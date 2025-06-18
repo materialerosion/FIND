@@ -1,6 +1,6 @@
 const API_URL = process.env.REACT_APP_API_URL || '/api';
 
-export const getFormulas = async (page = 1, perPage = 20, filters = {}) => {
+export const getFormulas = async (page = 1, perPage = 12, filters = {}) => {
   let url = `${API_URL}/formulas?page=${page}&per_page=${perPage}`;
   
   // Add filters to URL if provided
@@ -24,7 +24,7 @@ export const getFormulaById = async (objectNumber) => {
   return response.json();
 };
 
-export const searchFormulas = async (searchParams, page = 1, perPage = 20) => {
+export const searchFormulas = async (searchParams, page = 1, perPage = 12) => {
   let url = `${API_URL}/formulas/search?page=${page}&per_page=${perPage}`;
   
   // Add ingredient search parameters with coupled amount ranges

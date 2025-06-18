@@ -47,7 +47,7 @@ function FormulaList() {
       setNoResultsWithFilters(false);
       
       try {
-        const data = await getFormulas(currentPage, 20, selectedFilters);
+        const data = await getFormulas(currentPage, 12, selectedFilters);
         setFormulas(data.formulas);
         setPagination(data.pagination);
         

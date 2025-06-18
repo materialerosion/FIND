@@ -265,7 +265,7 @@ def get_formulas():
     try:
         # Get pagination parameters
         page = request.args.get('page', 1, type=int)
-        per_page = request.args.get('per_page', 20, type=int)
+        per_page = request.args.get('per_page', 12, type=int)
         
         # Get filter parameters
         brand = request.args.get('brand', '')
@@ -379,10 +379,10 @@ def search_formulas():
     try:
         # Get pagination parameters
         page = request.args.get('page', 1, type=int)
-        per_page = request.args.get('per_page', 20, type=int)
+        per_page = request.args.get('per_page', 12, type=int)
         
         # Limit maximum per_page to avoid overwhelming responses
-        per_page = min(per_page, 100)
+        per_page = min(per_page, 400)
         
         # Start with a base query
         query = Formula.query
