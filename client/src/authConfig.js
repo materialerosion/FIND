@@ -3,6 +3,18 @@
  */
 import { LogLevel } from "@azure/msal-browser";
 
+// Get environment variables with explicit defaults and logging for debugging
+const clientId = process.env.REACT_APP_AZURE_CLIENT_ID;
+const tenantId = process.env.REACT_APP_AZURE_TENANT_ID;
+
+// Debug logging for environment variables
+if (!clientId) {
+    console.error("REACT_APP_AZURE_CLIENT_ID is not defined in environment variables");
+}
+if (!tenantId) {
+    console.error("REACT_APP_AZURE_TENANT_ID is not defined in environment variables");
+}
+
 /**
  * Configuration object for the MSAL instance
  * Values are pulled from environment variables for security

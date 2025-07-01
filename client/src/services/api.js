@@ -208,29 +208,37 @@ export const importAliases = async (file) => {
 };
 
 export const exportAliases = async () => {
-  window.location.href = `${API_URL}/aliases/export`;
-  return true;
-};
-
-export const backupAliases = async () => {
-  window.location.href = `${API_URL}/aliases/backup`;
-  return true;
-};
-
-export const restoreAliases = async (file) => {
-  const formData = new FormData();
-  formData.append('file', file);
-  
-  const response = await fetch(`${API_URL}/aliases/restore`, {
-    method: 'POST',
-    body: formData,
-  });
-  
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.error || 'Failed to restore aliases');
+  try {
+    // Use fetch to check if the endpoint is accessible
+    const response = await fetch(`${API_URL}/aliases/export`);
+    
+    if (!response.ok) {
+      // If response is not OK, try to parse error message
+      const errorData = await response.json().catch(() => ({ error: 'Failed to export aliases' }));
+      throw new Error(errorData.error || 'Failed to export aliases');
+    }
+    
+    // If the response is OK, get the blob data
+    const blob = await response.blob();
+    
+    // Create a download link and trigger it
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = url;
+    a.download = 'aliases.csv'; // Specify the filename
+    document.body.appendChild(a);
+    a.click();
+    
+    // Clean up
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    
+    return true;
+  } catch (error) {
+    console.error('Error downloading aliases:', error);
+    throw error;
   }
-  return response.json();
 };
 
 export const createServerBackup = async () => {

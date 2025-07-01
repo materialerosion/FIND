@@ -6,8 +6,6 @@ import {
   deleteAlias,
   importAliases,
   exportAliases,
-  backupAliases,
-  restoreAliases,
   createServerBackup,
   getServerBackups,
   restoreServerBackup,
@@ -34,10 +32,6 @@ function AliasManagement() {
   const [importResult, setImportResult] = useState(null);
   const [importing, setImporting] = useState(false);
   
-  const [restoreFile, setRestoreFile] = useState(null);
-  const [restoreResult, setRestoreResult] = useState(null);
-  const [restoring, setRestoring] = useState(false);
-  
   // Add new state variables for server backups
   const [serverBackups, setServerBackups] = useState([]);
   const [loadingBackups, setLoadingBackups] = useState(false);
@@ -47,6 +41,8 @@ function AliasManagement() {
   const [isRestoringBackup, setIsRestoringBackup] = useState(false);
   const [selectedBackupId, setSelectedBackupId] = useState('');
   const [clearExistingOnRestore, setClearExistingOnRestore] = useState(false);
+  
+  const [exporting, setExporting] = useState(false);
   
   // Load ingredients
   useEffect(() => {
@@ -267,60 +263,23 @@ function AliasManagement() {
   
   const handleExportAliases = async () => {
     try {
+      setExporting(true);
+      setAliasError('');
+      setAliasSuccess('');
       await exportAliases();
+      setAliasSuccess('Aliases exported successfully');
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => {
+        setAliasSuccess('');
+      }, 3000);
     } catch (error) {
-      setAliasError('Failed to export aliases');
+      setAliasError(`Failed to export aliases: ${error.message}`);
+    } finally {
+      setExporting(false);
     }
   };
   
-  const handleBackupAliases = async () => {
-    try {
-      await backupAliases();
-    } catch (error) {
-      setAliasError('Failed to backup aliases');
-    }
-  };
-
-  const handleRestoreFile = (e) => {
-    if (e.target.files[0]) {
-      setRestoreFile(e.target.files[0]);
-      setRestoreResult(null);
-    }
-  };
-
-  const handleRestoreAliases = async (e) => {
-    e.preventDefault();
-    
-    if (!restoreFile) {
-      setAliasError('Please select a JSON file to restore');
-      return;
-    }
-    
-    try {
-      setRestoring(true);
-      setAliasError('');
-      const result = await restoreAliases(restoreFile);
-      setRestoreResult(result);
-      
-      // Clear the file input
-      document.getElementById('alias-restore-file').value = '';
-      setRestoreFile(null);
-      
-      // If an ingredient is selected, refresh its aliases
-      if (selectedIngredient) {
-        const data = await getIngredientAliases(selectedIngredient.id);
-        setAliases(data.aliases);
-      }
-      
-      // Refresh the ingredients list to show updated alias counts
-      fetchIngredients(currentPage, searchTerm);
-    } catch (error) {
-      setAliasError(error.message);
-    } finally {
-      setRestoring(false);
-    }
-  };
-
   const handleCreateServerBackup = async () => {
     try {
       setIsCreatingBackup(true);
@@ -597,7 +556,7 @@ function AliasManagement() {
           <div className="import-panel">
             <h3>Import Aliases</h3>
             <p className="help-text">
-              Upload a CSV file with ingredient names and aliases. 
+              Upload a CSV or Excel file with ingredient names and aliases. 
               Format: "Ingredient Name, Alias" (one per line).
             </p>
             
@@ -606,12 +565,12 @@ function AliasManagement() {
                 <input
                   type="file"
                   id="alias-import-file"
-                  accept=".csv"
+                  accept=".csv,.xlsx,.xls"
                   onChange={handleImportFile}
                   disabled={importing}
                 />
                 <label htmlFor="alias-import-file" className="file-label">
-                  {importFile ? importFile.name : 'Choose CSV file'}
+                  {importFile ? importFile.name : 'Choose CSV or Excel file'}
                 </label>
               </div>
               
@@ -646,8 +605,9 @@ function AliasManagement() {
             <button 
               onClick={handleExportAliases}
               className="export-button"
+              disabled={exporting}
             >
-              Export All Aliases
+              {exporting ? 'Exporting...' : 'Export All Aliases'}
             </button>
             
             <div className="csv-format">
@@ -660,57 +620,6 @@ function AliasManagement() {
               </pre>
             </div>
           </div>
-        </div>
-        
-        <div className="backup-restore-panel">
-          <h3>Backup & Restore</h3>
-          <p className="help-text">
-            Backup your aliases to a JSON file or restore from a previous backup.
-          </p>
-          
-          <div className="backup-restore-actions">
-            <button 
-              onClick={handleBackupAliases}
-              className="backup-button"
-            >
-              Backup Aliases
-            </button>
-            
-            <form onSubmit={handleRestoreAliases} className="restore-form">
-              <div className="file-input-container">
-                <input
-                  type="file"
-                  id="alias-restore-file"
-                  accept=".json"
-                  onChange={handleRestoreFile}
-                  disabled={restoring}
-                />
-                <label htmlFor="alias-restore-file" className="file-label">
-                  {restoreFile ? restoreFile.name : 'Choose JSON backup'}
-                </label>
-              </div>
-              
-              <button 
-                type="submit" 
-                className="restore-button"
-                disabled={!restoreFile || restoring}
-              >
-                {restoring ? 'Restoring...' : 'Restore Aliases'}
-              </button>
-            </form>
-          </div>
-          
-          {restoreResult && (
-            <div className="restore-result">
-              <div className="success-message">
-                {restoreResult.message}
-                <div className="restore-stats">
-                  <span>Restored: {restoreResult.aliases_restored}</span>
-                  <span>Skipped: {restoreResult.aliases_skipped}</span>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
         
         <div className="server-backups-section">

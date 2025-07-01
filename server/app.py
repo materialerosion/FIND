@@ -1,7 +1,7 @@
 import os
 import pandas as pd
 import datetime
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 from models.formula import db, Formula, Ingredient, FormulaIngredient, IngredientAlias
 from sqlalchemy import and_, or_, func, distinct
@@ -562,30 +562,38 @@ def search_formulas():
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/aliases/backup', methods=['GET'])
-def backup_aliases():
+@app.route('/api/aliases/export', methods=['GET'])
+def export_aliases():
     try:
-        # Get all aliases with ingredient information
-        aliases = []
+        # Query all aliases with their ingredient information
+        aliases_data = []
         for alias in IngredientAlias.query.all():
             ingredient = Ingredient.query.get(alias.ingredient_id)
             if ingredient:
-                aliases.append({
-                    'ingredient_name': ingredient.name,
-                    'ingredient_number': ingredient.fing_item_number,
-                    'alias': alias.alias
+                aliases_data.append({
+                    'Ingredient Name': ingredient.name,
+                    'Alias': alias.alias
                 })
         
-        # Create a JSON response with download header
-        response = jsonify(aliases)
-        response.headers["Content-Disposition"] = "attachment; filename=aliases_backup.json"
-        return response
+        # Create a DataFrame from the aliases data
+        df = pd.DataFrame(aliases_data)
+        
+        # Create a temporary file to write the CSV
+        temp_file = os.path.join(app.config['UPLOAD_FOLDER'], 'aliases_export.csv')
+        df.to_csv(temp_file, index=False)
+        
+        # Return the file as an attachment
+        return send_file(temp_file, as_attachment=True, 
+                         download_name='aliases.csv', 
+                         mimetype='text/csv')
     except Exception as e:
-        print(f"Error backing up aliases: {str(e)}")
+        print(f"Error exporting aliases: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/aliases/restore', methods=['POST'])
-def restore_aliases():
+@app.route('/api/aliases/import', methods=['POST'])
+def import_aliases():
     if 'file' not in request.files:
         return jsonify({'error': 'No file part'}), 400
     
@@ -594,55 +602,84 @@ def restore_aliases():
     if file.filename == '':
         return jsonify({'error': 'No selected file'}), 400
     
-    if file and file.filename.endswith('.json'):
+    if file and (file.filename.endswith('.csv') or file.filename.endswith('.xlsx') or file.filename.endswith('.xls')):
         try:
-            # Load the JSON data
-            aliases_data = json.loads(file.read().decode('utf-8'))
+            # Save the uploaded file
+            filename = secure_filename(file.filename)
+            file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            file.save(file_path)
             
-            aliases_restored = 0
-            aliases_skipped = 0
+            # Read the file based on its extension
+            if file.filename.endswith('.csv'):
+                df = pd.read_csv(file_path)
+            else:
+                df = pd.read_excel(file_path)
             
-            for alias_data in aliases_data:
-                # Find the ingredient by name or number
+            # Check if required columns exist
+            required_columns = ['Ingredient Name', 'Alias']
+            missing_columns = [col for col in required_columns if col not in df.columns]
+            if missing_columns:
+                return jsonify({
+                    'error': f'Missing required columns: {", ".join(missing_columns)}'
+                }), 400
+            
+            # Process the aliases
+            aliases_added = 0
+            errors = 0
+            
+            for index, row in df.iterrows():
+                ingredient_name = row['Ingredient Name']
+                alias_text = row['Alias']
+                
+                # Skip rows with missing data
+                if pd.isna(ingredient_name) or pd.isna(alias_text):
+                    errors += 1
+                    continue
+                
+                # Find the ingredient by name
                 ingredient = Ingredient.query.filter(
-                    (Ingredient.name == alias_data['ingredient_name']) | 
-                    (Ingredient.fing_item_number == alias_data['ingredient_number'])
+                    Ingredient.name.ilike(f'{ingredient_name}')
                 ).first()
                 
-                if ingredient:
-                    # Check if this alias already exists for the ingredient
-                    existing_alias = IngredientAlias.query.filter_by(
-                        ingredient_id=ingredient.id,
-                        alias=alias_data['alias']
-                    ).first()
-                    
-                    if not existing_alias:
-                        new_alias = IngredientAlias(
-                            alias=alias_data['alias'],
-                            ingredient_id=ingredient.id
-                        )
-                        db.session.add(new_alias)
-                        aliases_restored += 1
-                    else:
-                        aliases_skipped += 1
-                else:
-                    aliases_skipped += 1
+                if not ingredient:
+                    errors += 1
+                    continue
+                
+                # Check if the alias already exists
+                existing_alias = IngredientAlias.query.filter_by(
+                    ingredient_id=ingredient.id,
+                    alias=alias_text
+                ).first()
+                
+                if not existing_alias:
+                    # Add the new alias
+                    new_alias = IngredientAlias(
+                        alias=alias_text,
+                        ingredient_id=ingredient.id
+                    )
+                    db.session.add(new_alias)
+                    aliases_added += 1
             
-            # Commit the restored aliases
+            # Commit the changes
             db.session.commit()
             
-            return jsonify({
-                'success': True,
-                'message': f'Restored {aliases_restored} aliases successfully',
-                'aliases_restored': aliases_restored,
-                'aliases_skipped': aliases_skipped
-            })
+            # Clean up the file
+            if os.path.exists(file_path):
+                os.remove(file_path)
             
+            return jsonify({
+                'message': f'Successfully imported {aliases_added} aliases',
+                'aliases_added': aliases_added,
+                'errors': errors
+            })
         except Exception as e:
             db.session.rollback()
-            return jsonify({'error': f'Error restoring aliases: {str(e)}'}), 500
+            print(f"Error importing aliases: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return jsonify({"error": str(e)}), 500
     
-    return jsonify({'error': 'Invalid file format. Please upload a JSON file.'}), 400
+    return jsonify({'error': 'Invalid file format. Please upload a CSV or Excel file.'}), 400
 
 @app.route('/api/filter-options', methods=['GET'])
 def get_filter_options():
@@ -1165,6 +1202,201 @@ def delete_server_backup(backup_id):
     except Exception as e:
         print(f"Error deleting backup: {str(e)}")
         return jsonify({"error": str(e)}), 500
+
+@app.route('/api/export-database', methods=['GET'])
+def export_database():
+    try:
+        # Query all ingredients
+        ingredients = []
+        for ingredient in Ingredient.query.all():
+            ingredients.append({
+                'id': ingredient.id,
+                'name': ingredient.name,
+                'fing_item_number': ingredient.fing_item_number,
+                'description': ingredient.description,
+                'description_expanded': ingredient.description_expanded
+            })
+        
+        # Query all formulas with their ingredients
+        formulas = []
+        for formula in Formula.query.all():
+            formula_data = {
+                'id': formula.id,
+                'object_number': formula.object_number,
+                'formulation_name': formula.formulation_name,
+                'lifecycle_phase': formula.lifecycle_phase,
+                'formula_brand': formula.formula_brand,
+                'sbu_category': formula.sbu_category,
+                'dossier_type': formula.dossier_type,
+                'regulatory_comments': formula.regulatory_comments,
+                'general_comments': formula.general_comments,
+                'production_sites': formula.production_sites,
+                'predecessor_formulation_number': formula.predecessor_formulation_number,
+                'successor_formulation_number': formula.successor_formulation_number,
+                'ingredients': []
+            }
+            
+            for formula_ingredient in formula.ingredients:
+                formula_data['ingredients'].append({
+                    'ingredient_id': formula_ingredient.ingredient_id,
+                    'amount': formula_ingredient.amount,
+                    'unit': formula_ingredient.unit
+                })
+            
+            formulas.append(formula_data)
+        
+        # Return the complete database
+        return jsonify({
+            'ingredients': ingredients,
+            'formulas': formulas
+        })
+    except Exception as e:
+        print(f"Error exporting database: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/upload-database', methods=['POST'])
+def upload_database():
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file part'}), 400
+    
+    file = request.files['file']
+    
+    if file.filename == '':
+        return jsonify({'error': 'No selected file'}), 400
+    
+    if file and file.filename.endswith('.json'):
+        try:
+            # Read the JSON file
+            json_data = json.load(file)
+            
+            # Validate the structure
+            if 'ingredients' not in json_data or 'formulas' not in json_data:
+                return jsonify({'error': 'Invalid JSON format: missing ingredients or formulas'}), 400
+            
+            # Back up aliases before clearing data
+            aliases_backup = []
+            for alias in IngredientAlias.query.all():
+                ingredient = Ingredient.query.get(alias.ingredient_id)
+                if ingredient:
+                    aliases_backup.append({
+                        'ingredient_name': ingredient.name,
+                        'ingredient_number': ingredient.fing_item_number,
+                        'alias': alias.alias
+                    })
+            
+            # Create an automatic backup if there are aliases
+            if aliases_backup:
+                timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+                backup_filename = f"aliases_backup_{timestamp}.json"
+                backup_path = os.path.join(BACKUPS_DIR, backup_filename)
+                
+                # Write the backup to a file
+                with open(backup_path, 'w') as f:
+                    json.dump(aliases_backup, f, indent=2)
+            
+            # Clear existing data
+            db.session.query(FormulaIngredient).delete()
+            db.session.query(Formula).delete()
+            db.session.query(IngredientAlias).delete()
+            db.session.query(Ingredient).delete()
+            db.session.commit()
+            
+            # Create a mapping from file ingredient IDs to database IDs
+            ingredient_id_mapping = {}
+            
+            # Import ingredients
+            for ingredient_data in json_data['ingredients']:
+                ingredient = Ingredient(
+                    name=ingredient_data.get('name', ''),
+                    fing_item_number=ingredient_data.get('fing_item_number', ''),
+                    description=ingredient_data.get('description', ''),
+                    description_expanded=ingredient_data.get('description_expanded', '')
+                )
+                db.session.add(ingredient)
+                db.session.flush()  # Get the ID without committing
+                ingredient_id_mapping[ingredient_data['id']] = ingredient.id
+            
+            # Import formulas
+            for formula_data in json_data['formulas']:
+                formula = Formula(
+                    object_number=formula_data.get('object_number', ''),
+                    formulation_name=formula_data.get('formulation_name', ''),
+                    lifecycle_phase=formula_data.get('lifecycle_phase', ''),
+                    formula_brand=formula_data.get('formula_brand', ''),
+                    sbu_category=formula_data.get('sbu_category', ''),
+                    dossier_type=formula_data.get('dossier_type', ''),
+                    regulatory_comments=formula_data.get('regulatory_comments', ''),
+                    general_comments=formula_data.get('general_comments', ''),
+                    production_sites=formula_data.get('production_sites', ''),
+                    predecessor_formulation_number=formula_data.get('predecessor_formulation_number', ''),
+                    successor_formulation_number=formula_data.get('successor_formulation_number', '')
+                )
+                db.session.add(formula)
+                db.session.flush()
+                
+                # Import formula ingredients
+                for ingredient_data in formula_data.get('ingredients', []):
+                    # Map the ingredient ID from the file to the database ID
+                    if ingredient_data.get('ingredient_id') in ingredient_id_mapping:
+                        db_ingredient_id = ingredient_id_mapping[ingredient_data['ingredient_id']]
+                        
+                        formula_ingredient = FormulaIngredient(
+                            formula_id=formula.id,
+                            ingredient_id=db_ingredient_id,
+                            amount=ingredient_data.get('amount', 0.0),
+                            unit=ingredient_data.get('unit', '')
+                        )
+                        db.session.add(formula_ingredient)
+            
+            # Commit all changes
+            db.session.commit()
+            
+            # Restore aliases from backup
+            aliases_restored = 0
+            for alias_data in aliases_backup:
+                # Find the ingredient by name or number
+                ingredient = Ingredient.query.filter(
+                    (Ingredient.name == alias_data['ingredient_name']) | 
+                    (Ingredient.fing_item_number == alias_data['ingredient_number'])
+                ).first()
+                
+                if ingredient:
+                    # Check if this alias already exists for the ingredient
+                    existing_alias = IngredientAlias.query.filter_by(
+                        ingredient_id=ingredient.id,
+                        alias=alias_data['alias']
+                    ).first()
+                    
+                    if not existing_alias:
+                        new_alias = IngredientAlias(
+                            alias=alias_data['alias'],
+                            ingredient_id=ingredient.id
+                        )
+                        db.session.add(new_alias)
+                        aliases_restored += 1
+            
+            if aliases_restored > 0:
+                db.session.commit()
+            
+            return jsonify({
+                'message': 'Database imported successfully',
+                'ingredients_count': len(json_data['ingredients']),
+                'formulas_count': len(json_data['formulas']),
+                'aliases_restored': aliases_restored
+            })
+        
+        except json.JSONDecodeError:
+            return jsonify({'error': 'Invalid JSON file'}), 400
+        except Exception as e:
+            db.session.rollback()
+            print(f"Error importing database: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return jsonify({"error": str(e)}), 500
+    
+    return jsonify({'error': 'Invalid file format. Please upload a JSON file.'}), 400
 
 if __name__ == '__main__':
     with app.app_context():
