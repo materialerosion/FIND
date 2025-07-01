@@ -10,6 +10,8 @@
     "eject": "react-scripts eject"
   },
   "dependencies": {
+    "@azure/msal-browser": "^4.13.2",
+    "@azure/msal-react": "^3.0.13",
     "axios": "^1.8.4",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

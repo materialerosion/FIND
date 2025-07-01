@@ -1,0 +1,67 @@
+name: Build and Deploy FIND App
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: 'client/package-lock.json'
+      
+      - name: Install client dependencies
+        run: |
+          cd client
+          npm ci
+      
+      - name: Create .env file
+        run: |
+          cd client
+          echo "REACT_APP_AZURE_CLIENT_ID=${{ secrets.AZURE_CLIENT_ID }}" >> .env
+          echo "REACT_APP_AZURE_TENANT_ID=${{ secrets.AZURE_TENANT_ID }}" >> .env
+          echo "REACT_APP_API_URL=${{ secrets.API_URL || '/api' }}" >> .env
+      
+      - name: Build React app
+        run: |
+          cd client
+          npm run build
+      
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: build
+          path: client/build
+          retention-days: 5
+
+  # Uncomment when ready to deploy
+  # deploy:
+  #   needs: build
+  #   runs-on: ubuntu-latest
+  #   if: github.ref == 'refs/heads/main'
+  #   
+  #   steps:
+  #     - name: Download build artifacts
+  #       uses: actions/download-artifact@v3
+  #       with:
+  #         name: build
+  #         path: client/build
+  #     
+  #     # Add your deployment steps here
+  #     # Examples:
+  #     # - Azure Static Web Apps
+  #     # - AWS S3 + CloudFront
+  #     # - GitHub Pages
+  #     # - Netlify/Vercel 

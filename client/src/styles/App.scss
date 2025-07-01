@@ -68,3 +68,109 @@ body {
     }
   }
 }
+
+// App.scss - Add styles for the welcome screen
+
+.welcome-container {
+  text-align: center;
+  margin-top: 100px;
+  padding: 30px;
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+  
+  h2 {
+    color: #0078d4;
+    font-size: 2.5rem;
+    margin-bottom: 10px;
+  }
+  
+  p {
+    color: #555;
+    font-size: 1.2rem;
+    margin-bottom: 20px;
+  }
+  
+  .welcome-message {
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 1px solid #eee;
+    
+    p {
+      color: #666;
+      font-size: 1rem;
+    }
+  }
+}
+
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  
+  .container {
+    flex: 1;
+    padding: 20px;
+    max-width: 1200px;
+    margin: 0 auto;
+    width: 100%;
+  }
+}
+
+// Authentication-related styles
+.loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 200px;
+  font-size: 1.2rem;
+  color: #555;
+}
+
+.error {
+  background-color: #ffebee;
+  color: #c62828;
+  padding: 15px;
+  border-radius: 4px;
+  margin: 20px 0;
+  border-left: 5px solid #c62828;
+}
+
+// Protected content message
+.protected-warning {
+  background-color: #fff9c4;
+  padding: 15px;
+  border-radius: 4px;
+  margin-bottom: 20px;
+  border-left: 5px solid #fbc02d;
+  
+  h4 {
+    margin-top: 0;
+    color: #f57f17;
+  }
+}
+
+// User profile display
+.user-profile {
+  background-color: #f5f5f5;
+  padding: 15px;
+  border-radius: 4px;
+  margin-bottom: 20px;
+  
+  h3 {
+    margin-top: 0;
+  }
+  
+  .profile-info {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    
+    p {
+      margin: 0;
+    }
+  }
+}
