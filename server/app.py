@@ -10,6 +10,7 @@ import json
 
 app = Flask(__name__)
 CORS(app, origins=[
+    "https://victorious-field-0dec9f70f.6.azurestaticapps.net", 
     "https://victorious-field-0dec9f70f.6.azurestaticapps.net/", 
     "http://localhost:3000"
 ])
