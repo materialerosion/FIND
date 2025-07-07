@@ -1,12 +1,16 @@
 import os
 import pandas as pd
 import datetime
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify, send_file, render_template
 from flask_cors import CORS
 from models.formula import db, Formula, Ingredient, FormulaIngredient, IngredientAlias
 from sqlalchemy import and_, or_, func, distinct
 from werkzeug.utils import secure_filename
 import json
+from io import BytesIO
+import openpyxl
+from openpyxl.worksheet.table import Table, TableStyleInfo
+from xhtml2pdf import pisa
 
 app = Flask(__name__)
 CORS(app, origins=[
@@ -493,6 +497,37 @@ def search_formulas():
                     }
                 })
         
+        # Check for ingredient exclusions
+        exclude_ingredient_filters = []
+        i = 1
+        while True:
+            exclude_param = request.args.get(f'exclude_ingredient{i}')
+            if not exclude_param:
+                break
+            exclude_ingredient_filters.append(exclude_param)
+            i += 1
+        
+        # If we have exclusions, find all formulas that contain any of the excluded ingredients
+        if exclude_ingredient_filters:
+            exclude_ingredient_ids = set()
+            for exclude_name in exclude_ingredient_filters:
+                matching_ingredients = db.session.query(Ingredient.id).distinct().\
+                    outerjoin(IngredientAlias, Ingredient.id == IngredientAlias.ingredient_id).\
+                    filter(
+                        db.or_(
+                            Ingredient.name.ilike(f'%{exclude_name}%'),
+                            IngredientAlias.alias.ilike(f'%{exclude_name}%')
+                        )
+                    ).all()
+                exclude_ingredient_ids.update([r[0] for r in matching_ingredients])
+            if exclude_ingredient_ids:
+                # Find all formula IDs that contain any of these ingredients
+                exclude_formula_ids = db.session.query(FormulaIngredient.formula_id).\
+                    filter(FormulaIngredient.ingredient_id.in_(exclude_ingredient_ids)).distinct().all()
+                exclude_formula_ids = set([r[0] for r in exclude_formula_ids])
+                if exclude_formula_ids:
+                    query = query.filter(~Formula.id.in_(exclude_formula_ids))
+        
         # Apply other filters
         brand = request.args.get('brand')
         if brand:
@@ -505,6 +540,11 @@ def search_formulas():
         lifecycle_phase = request.args.get('lifecycle_phase')
         if lifecycle_phase:
             query = query.filter(Formula.lifecycle_phase == lifecycle_phase)
+        
+        # Filter by production site (partial, case-insensitive match)
+        production_site = request.args.get('production_site')
+        if production_site:
+            query = query.filter(Formula.production_sites.ilike(f'%{production_site}%'))
         
         # Make sure results are distinct
         query = query.distinct()
@@ -697,10 +737,22 @@ def get_filter_options():
         phases_query = db.session.query(distinct(Formula.lifecycle_phase)).filter(Formula.lifecycle_phase != '').order_by(Formula.lifecycle_phase)
         lifecycle_phases = [phase[0] for phase in phases_query.all()]
         
+        # Get unique production sites (split by comma, strip whitespace, flatten)
+        sites_query = db.session.query(Formula.production_sites).filter(Formula.production_sites != '').distinct()
+        sites_set = set()
+        for row in sites_query:
+            if row[0]:
+                for site in row[0].split(','):
+                    site_clean = site.strip()
+                    if site_clean:
+                        sites_set.add(site_clean)
+        production_sites = sorted(sites_set)
+        
         return jsonify({
             'brands': brands,
             'categories': categories,
-            'lifecyclePhases': lifecycle_phases
+            'lifecyclePhases': lifecycle_phases,
+            'productionSites': production_sites
         })
         
     except Exception as e:
@@ -1398,6 +1450,122 @@ def upload_database():
             return jsonify({"error": str(e)}), 500
     
     return jsonify({'error': 'Invalid file format. Please upload a JSON file.'}), 400
+
+@app.route('/api/formulas/export', methods=['GET'])
+def export_formulas_excel():
+    try:
+        # Get filter parameters
+        brand = request.args.get('brand', '')
+        category = request.args.get('category', '')
+        lifecycle_phase = request.args.get('lifecycle_phase', '')
+
+        # Build query with filters (reuse logic from get_formulas)
+        query = Formula.query
+        if brand:
+            query = query.filter(Formula.formula_brand == brand)
+        if category:
+            query = query.filter(Formula.sbu_category == category)
+        if lifecycle_phase:
+            query = query.filter(Formula.lifecycle_phase == lifecycle_phase)
+
+        formulas = query.all()
+
+        # Create Excel workbook
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = 'Formulas'
+        # Header
+        headers = ['Object Number', 'Formulation Name', 'Lifecycle Phase', 'Brand', 'Category']
+        ws.append(headers)
+        # Data rows
+        for formula in formulas:
+            ws.append([
+                formula.object_number,
+                formula.formulation_name,
+                formula.lifecycle_phase,
+                formula.formula_brand,
+                formula.sbu_category
+            ])
+        # Format as table
+        last_row = ws.max_row
+        last_col = ws.max_column
+        table_ref = f"A1:{chr(64+last_col)}{last_row}"
+        table = Table(displayName="FormulaTable", ref=table_ref)
+        style = TableStyleInfo(name="TableStyleMedium9", showFirstColumn=False,
+                               showLastColumn=False, showRowStripes=True, showColumnStripes=False)
+        table.tableStyleInfo = style
+        ws.add_table(table)
+        # Set hard-coded column widths
+        col_widths = [18, 32, 18, 18, 18]
+        for i, width in enumerate(col_widths, start=1):
+            ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = width
+        # Generate unique filename: FIND list export DDMMYY_N.xlsx
+        today_str = datetime.datetime.now().strftime('%d%m%y')
+        counter_file = os.path.join(BACKUPS_DIR, f'export_counter_{today_str}.txt')
+        if os.path.exists(counter_file):
+            with open(counter_file, 'r') as f:
+                try:
+                    counter = int(f.read().strip()) + 1
+                except:
+                    counter = 1
+        else:
+            counter = 1
+        with open(counter_file, 'w') as f:
+            f.write(str(counter))
+        filename = f"FIND list export {today_str}_{counter}.xlsx"
+        # Save to in-memory buffer
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+        # Send as file
+        return send_file(
+            output,
+            as_attachment=True,
+            download_name=filename,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+    except Exception as e:
+        print(f"Error exporting formulas to Excel: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/formulas/<object_number>/pdf', methods=['GET'])
+def export_formula_pdf(object_number):
+    formula = Formula.query.filter_by(object_number=object_number).first_or_404()
+    # Prepare data for template
+    formula_data = {
+        'object_number': formula.object_number,
+        'formulation_name': formula.formulation_name,
+        'lifecycle_phase': formula.lifecycle_phase,
+        'formula_brand': formula.formula_brand,
+        'sbu_category': formula.sbu_category,
+        'dossier_type': formula.dossier_type,
+        'regulatory_comments': formula.regulatory_comments,
+        'general_comments': formula.general_comments,
+        'production_sites': formula.production_sites,
+        'predecessor_formulation_number': formula.predecessor_formulation_number,
+        'successor_formulation_number': formula.successor_formulation_number,
+        'ingredients': []
+    }
+    for formula_ingredient in formula.ingredients:
+        ingredient = Ingredient.query.get(formula_ingredient.ingredient_id)
+        formula_data['ingredients'].append({
+            'name': ingredient.name,
+            'fing_item_number': ingredient.fing_item_number,
+            'amount': formula_ingredient.amount,
+            'unit': formula_ingredient.unit
+        })
+    # Render HTML template
+    html = render_template('formula_pdf.html', formula=formula_data)
+    # Convert HTML to PDF
+    pdf = BytesIO()
+    pisa_status = pisa.CreatePDF(html, dest=pdf)
+    if pisa_status.err:
+        return jsonify({'error': 'PDF generation failed'}), 500
+    pdf.seek(0)
+    filename = f"Formula_{formula.object_number}.pdf"
+    return send_file(pdf, as_attachment=True, download_name=filename, mimetype='application/pdf')
 
 if __name__ == '__main__':
     with app.app_context():

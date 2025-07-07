@@ -1,23 +1,51 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { useIsAuthenticated } from '@azure/msal-react';
+import { useAuth } from '../contexts/AuthContext';
 import SignInButton from './SignInButton';
-import SignOutButton from './SignOutButton';
 import '../styles/Navbar.scss';
 
 function Navbar() {
   const location = useLocation();
-  const isAuthenticated = useIsAuthenticated();
+  const { isAuthenticated, login, logout } = useAuth();
   
   // Dynamic class based on authentication state
   const navbarClass = isAuthenticated ? 'navbar authenticated' : 'navbar';
   
+  // Auto-login effect: try to login automatically if not authenticated
+  useEffect(() => {
+    if (!isAuthenticated) {
+      // Try silent login first, fallback to popup
+      login('popup');
+    }
+  }, [isAuthenticated, login]);
+  
   return (
     <nav className={navbarClass}>
-      <div className="container">
+      <div className="container" style={{ position: 'relative' }}>
         <Link to="/" className="logo">
           <h1>FIND - Formula Ingredient Navigator & Database</h1>
         </Link>
+        
+        {/* Hidden logout button in top right */}
+        {isAuthenticated && (
+          <button
+            onClick={() => logout('popup')}
+            style={{
+              position: 'absolute',
+              top: 10,
+              right: 10,
+              opacity: 0,
+              pointerEvents: 'auto',
+              width: 40,
+              height: 40,
+              zIndex: 1000,
+            }}
+            aria-label="Logout (hidden)"
+            tabIndex={0}
+          >
+            Logout
+          </button>
+        )}
         
         <div className="nav-links">
           {isAuthenticated && (
@@ -50,7 +78,7 @@ function Navbar() {
           )}
           
           <div className="auth-buttons">
-            {isAuthenticated ? <SignOutButton /> : <SignInButton />}
+            {!isAuthenticated && <SignInButton />}
           </div>
         </div>
       </div>

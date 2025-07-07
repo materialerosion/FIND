@@ -27,8 +27,8 @@ export const msalConfig = {
         postLogoutRedirectUri: window.location.origin,
     },
     cache: {
-        cacheLocation: "sessionStorage",
-        storeAuthStateInCookie: false,
+        cacheLocation: "localStorage",
+        storeAuthStateInCookie: true,
     },
     system: {
         loggerOptions: {

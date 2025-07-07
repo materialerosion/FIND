@@ -26,6 +26,30 @@ function FormulaDetail() {
     fetchFormula();
   }, [objectNumber]);
 
+  // Download PDF handler
+  const handleDownloadPDF = async () => {
+    const url = `/api/formulas/${objectNumber}/pdf`;
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Failed to download PDF');
+      const blob = await response.blob();
+      const contentDisposition = response.headers.get('Content-Disposition');
+      let filename = `Formula_${objectNumber}.pdf`;
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename="(.+)"/);
+        if (match) filename = match[1];
+      }
+      const link = document.createElement('a');
+      link.href = window.URL.createObjectURL(blob);
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (err) {
+      alert('Failed to download PDF.');
+    }
+  };
+
   if (loading) {
     return <div className="loading">Loading formula details...</div>;
   }
@@ -48,44 +72,68 @@ function FormulaDetail() {
         <Link to="/">← Back to all formulas</Link>
       </div>
       
-      <div className="formula-header">
-        <h1>{formula.formulation_name}</h1>
-        <div className="formula-number">Formula Number: {formula.object_number}</div>
+      <div className="formula-header" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+        <div style={{ flex: 1 }}>
+          <h1>{formula.formulation_name}</h1>
+          <div className="formula-number">Formula Number: {formula.object_number}</div>
+        </div>
+        <button
+          onClick={handleDownloadPDF}
+          style={{
+            marginLeft: '2rem',
+            marginBottom: '10px',
+            background: '#1976d2',
+            color: 'white',
+            padding: '0.35rem 0.8rem',
+            border: 'none',
+            borderRadius: '5px',
+            fontWeight: 'normal',
+            fontSize: '0.92rem',
+            height: '36px',
+            cursor: 'pointer',
+            transition: 'background 0.2s',
+            display: 'inline-block',
+          }}
+          onMouseOver={e => (e.currentTarget.style.background = '#1565c0')}
+          onMouseOut={e => (e.currentTarget.style.background = '#1976d2')}
+        >
+          Download PDF
+        </button>
+      </div>
+      
+      <div className="formula-meta">
+        <div className="meta-item">
+          <span className="label">Brand:</span>
+          <span className="value">{formula.formula_brand}</span>
+        </div>
         
-        <div className="formula-meta">
-          <div className="meta-item">
-            <span className="label">Brand:</span>
-            <span className="value">{formula.formula_brand}</span>
-          </div>
-          
-          <div className="meta-item">
-            <span className="label">Lifecycle Phase:</span>
-            <span className={`value phase ${formula.lifecycle_phase?.toLowerCase()}`}>
-              {formula.lifecycle_phase}
-            </span>
-          </div>
-          
-          <div className="meta-item">
-            <span className="label">Category:</span>
-            <span className="value">{formula.sbu_category}</span>
-          </div>
-          
-          <div className="meta-item">
-            <span className="label">Dossier Type:</span>
-            <span className="value">{formula.dossier_type}</span>
-          </div>
+        <div className="meta-item">
+          <span className="label">Lifecycle Phase:</span>
+          <span className={`value phase ${formula.lifecycle_phase?.toLowerCase()}`}>
+            {formula.lifecycle_phase}
+          </span>
+        </div>
+        
+        <div className="meta-item">
+          <span className="label">Category:</span>
+          <span className="value">{formula.sbu_category}</span>
+        </div>
+        
+        <div className="meta-item">
+          <span className="label">Dossier Type:</span>
+          <span className="value">{formula.dossier_type}</span>
         </div>
       </div>
       
-        <div className="external-links">
-          <a href={dorisQualUrl} target="_blank" rel="noopener noreferrer" className="doris-link">
-            <span className="icon">📄</span> Quality Documents via Doris
-          </a>
-          &nbsp;
-          <a href={dorisUrl} target="_blank" rel="noopener noreferrer" className="doris-link">
-            <span className="icon">📃</span> All Regulatory Documents
-          </a>
-        </div>
+      <div className="external-links">
+        <a href={dorisQualUrl} target="_blank" rel="noopener noreferrer" className="doris-link">
+          <span className="icon">📄</span> Quality Documents via Doris
+        </a>
+        &nbsp;
+        <a href={dorisUrl} target="_blank" rel="noopener noreferrer" className="doris-link">
+          <span className="icon">📃</span> All Regulatory Documents
+        </a>
+      </div>
 
       {(formula.predecessor_formulation_number || formula.successor_formulation_number) && (
         <div className="formula-relations">

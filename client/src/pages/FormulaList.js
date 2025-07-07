@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { getFormulas, getFilterOptions } from '../services/api';
 import FormulaCard from '../components/FormulaCard';
 import '../styles/FormulaList.scss';
+import downloadLogo from '../assets/download_logo.svg';
 
 function FormulaList() {
   const [formulas, setFormulas] = useState([]);
@@ -24,6 +25,12 @@ function FormulaList() {
     lifecyclePhase: ''
   });
   const [showFilters, setShowFilters] = useState(false);
+  // Persisted view mode for FormulaList
+  const getInitialViewMode = () => {
+    const saved = localStorage.getItem('formulaListViewMode');
+    return saved === 'list' || saved === 'card' ? saved : 'card';
+  };
+  const [viewMode, setViewModeState] = useState(getInitialViewMode);
 
   // Load filter options
   useEffect(() => {
@@ -94,6 +101,95 @@ function FormulaList() {
     setShowFilters(!showFilters);
   };
 
+  // Export to Excel handler
+  const handleExportExcel = async () => {
+    const params = new URLSearchParams();
+    if (selectedFilters.brand) params.append('brand', selectedFilters.brand);
+    if (selectedFilters.category) params.append('category', selectedFilters.category);
+    if (selectedFilters.lifecyclePhase) params.append('lifecycle_phase', selectedFilters.lifecyclePhase);
+    const url = `/api/formulas/export?${params.toString()}`;
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Failed to export Excel file');
+      const blob = await response.blob();
+      const contentDisposition = response.headers.get('Content-Disposition');
+      let filename = 'formulas_export.xlsx';
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename="(.+)"/);
+        if (match) filename = match[1];
+      }
+      const link = document.createElement('a');
+      link.href = window.URL.createObjectURL(blob);
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (err) {
+      alert('Failed to export Excel file.');
+    }
+  };
+
+  const buttonStyle = {
+    background: '#1976d2',
+    color: 'white',
+    padding: '0.35rem 0.8rem',
+    border: 'none',
+    borderRadius: '5px',
+    cursor: 'pointer',
+    transition: 'background 0.2s',
+    display: 'flex',
+    alignItems: 'center',
+    fontWeight: 'normal',
+    fontSize: '0.92rem',
+    height: '36px',
+    minWidth: '110px',
+    justifyContent: 'center',
+  };
+
+  // Inline FormulaTable component for list view
+  const [hoveredRow, setHoveredRow] = useState(null);
+  const FormulaTable = ({ formulas }) => (
+    <table style={{ width: '100%', borderCollapse: 'collapse', background: 'white', borderRadius: '10px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', marginTop: '0' }}>
+      <thead>
+        <tr style={{ background: '#f5f5f5' }}>
+          <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600 }}>Object Number</th>
+          <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600 }}>Formulation Name</th>
+          <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600 }}>Lifecycle Phase</th>
+          <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600 }}>Brand</th>
+          <th style={{ padding: '12px', textAlign: 'left', fontWeight: 600 }}>Category</th>
+        </tr>
+      </thead>
+      <tbody>
+        {formulas.map((formula, idx) => (
+          <tr
+            key={formula.id}
+            style={{
+              borderBottom: '1px solid #eee',
+              cursor: 'pointer',
+              background: hoveredRow === idx ? '#e3eafc' : 'white',
+              transition: 'background 0.15s',
+            }}
+            onClick={() => window.location.href = `/formula/${formula.object_number}`}
+            onMouseEnter={() => setHoveredRow(idx)}
+            onMouseLeave={() => setHoveredRow(null)}
+          >
+            <td style={{ padding: '10px' }}>{formula.object_number}</td>
+            <td style={{ padding: '10px' }}>{formula.formulation_name}</td>
+            <td style={{ padding: '10px' }}>{formula.lifecycle_phase}</td>
+            <td style={{ padding: '10px' }}>{formula.formula_brand}</td>
+            <td style={{ padding: '10px' }}>{formula.sbu_category}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+
+  // Wrap setViewMode to also update localStorage
+  const setViewMode = (mode) => {
+    setViewModeState(mode);
+    localStorage.setItem('formulaListViewMode', mode);
+  };
+
   if (loading && formulas.length === 0 && !noResultsWithFilters) {
     return <div className="loading">Loading formulas...</div>;
   }
@@ -109,13 +205,26 @@ function FormulaList() {
 
   return (
     <div className="formula-list">
-      <div className="list-header">
-        <h1>Formula Database</h1>
+      <div className="list-header" style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0px' }}>
+        <h1 style={{ flex: '1' }}>Formula Database</h1>
         <button 
           className={`filter-toggle ${showFilters ? 'active' : ''}`} 
           onClick={toggleFilters}
+          style={{ ...buttonStyle, marginLeft: '2rem' }}
+          onMouseOver={e => (e.currentTarget.style.background = '#1565c0')}
+          onMouseOut={e => (e.currentTarget.style.background = '#1976d2')}
         >
           {showFilters ? 'Hide Filters' : 'Show Filters'}
+        </button>
+        <button
+          className="export-excel"
+          onClick={handleExportExcel}
+          style={{ ...buttonStyle, marginLeft: '1rem' }}
+          onMouseOver={e => (e.currentTarget.style.background = '#1565c0')}
+          onMouseOut={e => (e.currentTarget.style.background = '#1976d2')}
+        >
+          <img src={downloadLogo} alt="Download Excel" style={{ width: '22px', height: '22px', marginRight: '8px' }} />
+          Export to Excel
         </button>
       </div>
       
@@ -187,14 +296,60 @@ function FormulaList() {
           
           {formulas.length > 0 && (
             <>
+              {/* Stats and view toggle in a single flex row, aligned and touching content */}
+              <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', margin: '0 0 16px 0' }}>
               {pagination && (
-                <div className="formula-stats">
-                  <p>Showing {formulas.length} of {pagination.total} formulas (Page {pagination.current_page} of {pagination.pages})</p>
+                  <div className="formula-stats" style={{ padding: 0, margin: 0, fontSize: '1rem' }}>
+                    <p style={{ margin: 0, padding: 0 }}>Showing {formulas.length} of {pagination.total} formulas (Page {pagination.current_page} of {pagination.pages})</p>
+                  </div>
+                )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: '#e3eafc', borderRadius: '6px', padding: '4px 8px' }}>
+                  <button
+                    aria-label="Card view"
+                    onClick={() => setViewMode('card')}
+                    style={{
+                      background: viewMode === 'card' ? '#1976d2' : 'transparent',
+                      border: 'none',
+                      borderRadius: '4px',
+                      padding: '4px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      transition: 'background 0.2s',
+                    }}
+                  >
+                    {/* Grid icon */}
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <rect x="3" y="3" width="7" height="7" rx="2" fill={viewMode === 'card' ? '#fff' : '#1976d2'} />
+                      <rect x="14" y="3" width="7" height="7" rx="2" fill={viewMode === 'card' ? '#fff' : '#1976d2'} />
+                      <rect x="14" y="14" width="7" height="7" rx="2" fill={viewMode === 'card' ? '#fff' : '#1976d2'} />
+                      <rect x="3" y="14" width="7" height="7" rx="2" fill={viewMode === 'card' ? '#fff' : '#1976d2'} />
+                    </svg>
+                  </button>
+                  <button
+                    aria-label="List view"
+                    onClick={() => setViewMode('list')}
+                    style={{
+                      background: viewMode === 'list' ? '#1976d2' : 'transparent',
+                      border: 'none',
+                      borderRadius: '4px',
+                      padding: '4px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      transition: 'background 0.2s',
+                    }}
+                  >
+                    {/* List icon */}
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <rect x="4" y="6" width="16" height="2.5" rx="1" fill={viewMode === 'list' ? '#fff' : '#1976d2'} />
+                      <rect x="4" y="11" width="16" height="2.5" rx="1" fill={viewMode === 'list' ? '#fff' : '#1976d2'} />
+                      <rect x="4" y="16" width="16" height="2.5" rx="1" fill={viewMode === 'list' ? '#fff' : '#1976d2'} />
+                    </svg>
+                  </button>
                 </div>
-              )}
-              
-              {loading && <div className="loading-overlay">Loading...</div>}
-              
+              </div>
+              {viewMode === 'card' ? (
               <div className="formula-grid">
                 {formulas.map(formula => (
                   <Link to={`/formula/${formula.object_number}`} key={formula.id}>
@@ -202,6 +357,9 @@ function FormulaList() {
                   </Link>
                 ))}
               </div>
+              ) : (
+                <FormulaTable formulas={formulas} />
+              )}
               
               {pagination && pagination.pages > 1 && (
                 <div className="pagination">

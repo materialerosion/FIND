@@ -33,11 +33,15 @@ export const AuthProvider = ({ children }) => {
                         id: userProfile.id,
                         ...userProfile
                     });
+                    // Persist authentication state
+                    localStorage.setItem('isAuthenticated', 'true');
                 } catch (error) {
                     console.error('Error fetching user profile:', error);
                 }
             } else {
                 setUser(null);
+                // Remove authentication state
+                localStorage.removeItem('isAuthenticated');
             }
             
             setLoading(false);
@@ -46,7 +50,29 @@ export const AuthProvider = ({ children }) => {
         getUser();
     }, [accounts, instance]);
     
-    const login = async (method = 'popup') => {
+    // On mount, if localStorage says authenticated but accounts is empty, try silent login
+    useEffect(() => {
+        const maxAttempts = 3;
+        const attemptKey = 'autoAuthAttempts';
+        if (localStorage.getItem('isAuthenticated') === 'true' && accounts.length === 0) {
+            let attempts = parseInt(localStorage.getItem(attemptKey) || '0', 10);
+            if (attempts < maxAttempts) {
+                localStorage.setItem(attemptKey, (attempts + 1).toString());
+                // Try to trigger login silently using redirect
+                instance.loginRedirect(loginRequest).catch(() => {});
+            }
+        }
+    }, []);
+    
+    // Reset auto-auth attempts on successful login or logout
+    useEffect(() => {
+        const attemptKey = 'autoAuthAttempts';
+        if (accounts.length > 0 || localStorage.getItem('isAuthenticated') !== 'true') {
+            localStorage.removeItem(attemptKey);
+        }
+    }, [accounts]);
+    
+    const login = async (method = '') => {
         try {
             if (method === 'popup') {
                 await instance.loginPopup(loginRequest);
