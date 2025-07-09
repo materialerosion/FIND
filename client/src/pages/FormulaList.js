@@ -352,9 +352,15 @@ function FormulaList() {
               {viewMode === 'card' ? (
               <div className="formula-grid">
                 {formulas.map(formula => (
-                  <Link to={`/formula/${formula.object_number}`} key={formula.id}>
+                  <a
+                    href={`/formula/${formula.object_number}`}
+                    key={formula.id}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ textDecoration: 'none', color: 'inherit' }}
+                  >
                     <FormulaCard formula={formula} />
-                  </Link>
+                  </a>
                 ))}
               </div>
               ) : (

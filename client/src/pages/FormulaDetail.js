@@ -140,18 +140,28 @@ function FormulaDetail() {
           {formula.predecessor_formulation_number && (
             <div className="relation successor">
               <span className="label">Predecessor:</span>
-              <Link to={`/formula/${formula.predecessor_formulation_number}`} className="value predecessor-link">
-                {formula.predecessor_formulation_number}
-              </Link>
+              {formula.predecessor_formulation_number.split(',').map((id, idx) => (
+                <span key={id.trim()}>
+                  <Link to={`/formula/${id.trim()}`} className="value predecessor-link">
+                    {id.trim()}
+                  </Link>
+                  {idx < formula.predecessor_formulation_number.split(',').length - 1 && ', '}
+                </span>
+              ))}
             </div>
           )}
           
           {formula.successor_formulation_number && (
             <div className="relation successor">
               <span className="label">Successor:</span>
-              <Link to={`/formula/${formula.successor_formulation_number}`} className="value successor-link">
-                {formula.successor_formulation_number}
-              </Link>
+              {formula.successor_formulation_number.split(',').map((id, idx) => (
+                <span key={id.trim()}>
+                  <Link to={`/formula/${id.trim()}`} className="value successor-link">
+                    {id.trim()}
+                  </Link>
+                  {idx < formula.successor_formulation_number.split(',').length - 1 && ', '}
+                </span>
+              ))}
             </div>
           )}
         </div>
