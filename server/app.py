@@ -1,7 +1,7 @@
 import os
 import pandas as pd
 import datetime
-from flask import Flask, request, jsonify, send_file, render_template
+from flask import Flask, request, jsonify, send_file, render_template, send_from_directory
 from flask_cors import CORS
 from models.formula import db, Formula, Ingredient, FormulaIngredient, IngredientAlias
 from sqlalchemy import and_, or_, func, distinct
@@ -1566,6 +1566,20 @@ def export_formula_pdf(object_number):
     pdf.seek(0)
     filename = f"Formula_{formula.object_number}.pdf"
     return send_file(pdf, as_attachment=True, download_name=filename, mimetype='application/pdf')
+
+# Serve React static files and index.html for SPA routing
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def serve_react_app(path):
+    # If the request is for an API route, do nothing here
+    if path.startswith('api/'):
+        return jsonify({'error': 'Not found'}), 404
+    build_dir = os.path.join(os.path.dirname(__file__), '..', 'client', 'build')
+    file_path = os.path.join(build_dir, path)
+    if path != "" and os.path.exists(file_path):
+        return send_from_directory(build_dir, path)
+    else:
+        return send_from_directory(build_dir, 'index.html')
 
 if __name__ == '__main__':
     with app.app_context():
