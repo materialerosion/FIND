@@ -74,7 +74,7 @@ def initialize_database_from_excel():
         print("Clearing existing database records...")
         db.session.query(FormulaIngredient).delete()
         db.session.query(Formula).delete()
-        db.session.query(IngredientAlias).delete()  # Delete aliases
+        db.session.query(IngredientAlias).delete()  # Delete aliases before ingredients
         db.session.query(Ingredient).delete()
         db.session.commit()
         
@@ -925,6 +925,7 @@ def upload_excel():
             # Clear existing data
             db.session.query(FormulaIngredient).delete()
             db.session.query(Formula).delete()
+            db.session.query(IngredientAlias).delete()  # Delete aliases before ingredients
             db.session.query(Ingredient).delete()
             db.session.commit()
             

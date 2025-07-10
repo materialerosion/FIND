@@ -195,24 +195,6 @@ function DatabaseManagement() {
       
       {activeTab === 'excel' && (
         <>
-          <div className="card">
-            <h2>Load Default Database</h2>
-            <p>Initialize the database from the pre-loaded Excel file (Synaps Full 2025 Q1.xlsx) in the server.</p>
-            
-            <button 
-              className="initialize-button"
-              onClick={handleInitializeDatabase}
-              disabled={isInitializing}
-            >
-              {isInitializing ? 'Initializing...' : 'Initialize Database'}
-            </button>
-            
-            {uploadResult && !uploadError && (
-              <div className="success-message">
-                <p>{uploadResult.message}</p>
-              </div>
-            )}
-          </div>
           
           <div className="card">
             <h2>Import Excel Database</h2>
@@ -282,6 +264,25 @@ function DatabaseManagement() {
                 <li>SUCCESSORFORMULATIONNUMBER</li>
               </ul>
             </div>
+          </div>
+
+          <div className="card">
+            <h2>Load Default Database</h2>
+            <p>Initialize the database from the pre-loaded Excel file in the server, if it is available.</p>
+            
+            <button 
+              className="initialize-button"
+              onClick={handleInitializeDatabase}
+              disabled={isInitializing}
+            >
+              {isInitializing ? 'Initializing...' : 'Initialize Database'}
+            </button>
+            
+            {uploadResult && !uploadError && (
+              <div className="success-message">
+                <p>{uploadResult.message}</p>
+              </div>
+            )}
           </div>
         </>
       )}
