@@ -206,7 +206,12 @@ function FormulaList() {
   return (
     <div className="formula-list">
       <div className="list-header" style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0px' }}>
-        <h1 style={{ flex: '1' }}>Formula Database</h1>
+        <div style={{ flex: '1' }}>
+          <h1>Formula Database</h1>
+          <div style={{ fontSize: '1rem', color: '#555', marginTop: '0.25rem', marginBottom: '0.5rem' }}>
+            Database updated July 9 2025
+          </div>
+        </div>
         <button 
           className={`filter-toggle ${showFilters ? 'active' : ''}`} 
           onClick={toggleFilters}
