@@ -272,7 +272,7 @@ function SearchPage() {
                       type="number" 
                       value={input.minAmount} 
                       onChange={(e) => updateIngredientInput(index, 'minAmount', e.target.value)}
-                      placeholder="Min"
+                      placeholder="Min ingredient amount (mg)"
                       className="amount-input"
                     />
                   </div>
@@ -283,7 +283,7 @@ function SearchPage() {
                       type="number" 
                       value={input.maxAmount} 
                       onChange={(e) => updateIngredientInput(index, 'maxAmount', e.target.value)}
-                      placeholder="Max"
+                      placeholder="Max ingredient amount (mg)"
                       className="amount-input"
                     />
                   </div>
