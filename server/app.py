@@ -1455,30 +1455,132 @@ def upload_database():
 @app.route('/api/formulas/export', methods=['GET'])
 def export_formulas_excel():
     try:
-        # Get filter parameters
-        brand = request.args.get('brand', '')
-        category = request.args.get('category', '')
-        lifecycle_phase = request.args.get('lifecycle_phase', '')
-
-        # Build query with filters (reuse logic from get_formulas)
+        # --- Begin: Copy filter logic from search_formulas (no pagination) ---
         query = Formula.query
+
+        # Ingredient filters (support both legacy and array-style)
+        ingredient_filters = []
+        # Legacy: ingredient1, min_amount1, max_amount1, ...
+        i = 1
+        while True:
+            ingredient_param = request.args.get(f'ingredient{i}')
+            if not ingredient_param:
+                # If we have ingredient1 but not ingredient2, check for the legacy 'ingredient' param
+                if i == 1:
+                    ingredient_param = request.args.get('ingredient')
+                    if ingredient_param:
+                        min_amount = request.args.get('min_amount')
+                        max_amount = request.args.get('max_amount')
+                        ingredient_filters.append({
+                            'name': ingredient_param,
+                            'min_amount': min_amount,
+                            'max_amount': max_amount
+                        })
+                break
+            min_amount = request.args.get(f'min_amount{i}')
+            max_amount = request.args.get(f'max_amount{i}')
+            ingredient_filters.append({
+                'name': ingredient_param,
+                'min_amount': min_amount,
+                'max_amount': max_amount
+            })
+            i += 1
+        # New: ingredientFilters[0][name], ingredientFilters[0][minAmount], ...
+        idx = 0
+        while True:
+            name = request.args.get(f'ingredientFilters[{idx}][name]')
+            if not name:
+                break
+            min_amount = request.args.get(f'ingredientFilters[{idx}][minAmount]')
+            max_amount = request.args.get(f'ingredientFilters[{idx}][maxAmount]')
+            ingredient_filters.append({
+                'name': name,
+                'min_amount': min_amount,
+                'max_amount': max_amount
+            })
+            idx += 1
+        if ingredient_filters:
+            formula_ids_with_all_ingredients = None
+            for ingredient_filter in ingredient_filters:
+                ingredient_name = ingredient_filter['name']
+                matching_ingredients = db.session.query(Ingredient.id).distinct().\
+                    outerjoin(IngredientAlias, Ingredient.id == IngredientAlias.ingredient_id).\
+                    filter(
+                        db.or_(
+                            Ingredient.name.ilike(f'%{ingredient_name}%'),
+                            IngredientAlias.alias.ilike(f'%{ingredient_name}%')
+                        )
+                    ).all()
+                matching_ingredient_ids = [r[0] for r in matching_ingredients]
+                if not matching_ingredient_ids:
+                    return send_file(BytesIO(), as_attachment=True, download_name='no_results.xlsx', mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+                subquery = db.session.query(FormulaIngredient.formula_id).\
+                    filter(FormulaIngredient.ingredient_id.in_(matching_ingredient_ids))
+                if ingredient_filter['min_amount']:
+                    subquery = subquery.filter(FormulaIngredient.amount >= float(ingredient_filter['min_amount']))
+                if ingredient_filter['max_amount']:
+                    subquery = subquery.filter(FormulaIngredient.amount <= float(ingredient_filter['max_amount']))
+                formula_ids_with_ingredient = [r[0] for r in subquery.distinct().all()]
+                if formula_ids_with_all_ingredients is None:
+                    formula_ids_with_all_ingredients = set(formula_ids_with_ingredient)
+                else:
+                    formula_ids_with_all_ingredients &= set(formula_ids_with_ingredient)
+                if not formula_ids_with_all_ingredients:
+                    break
+            if formula_ids_with_all_ingredients:
+                query = query.filter(Formula.id.in_(formula_ids_with_all_ingredients))
+            else:
+                return send_file(BytesIO(), as_attachment=True, download_name='no_results.xlsx', mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        # Exclude ingredients
+        exclude_ingredient_filters = []
+        i = 1
+        while True:
+            exclude_param = request.args.get(f'exclude_ingredient{i}')
+            if not exclude_param:
+                break
+            exclude_ingredient_filters.append(exclude_param)
+            i += 1
+        if exclude_ingredient_filters:
+            exclude_ingredient_ids = set()
+            for exclude_name in exclude_ingredient_filters:
+                matching_ingredients = db.session.query(Ingredient.id).distinct().\
+                    outerjoin(IngredientAlias, Ingredient.id == IngredientAlias.ingredient_id).\
+                    filter(
+                        db.or_(
+                            Ingredient.name.ilike(f'%{exclude_name}%'),
+                            IngredientAlias.alias.ilike(f'%{exclude_name}%')
+                        )
+                    ).all()
+                exclude_ingredient_ids.update([r[0] for r in matching_ingredients])
+            if exclude_ingredient_ids:
+                exclude_formula_ids = db.session.query(FormulaIngredient.formula_id).\
+                    filter(FormulaIngredient.ingredient_id.in_(exclude_ingredient_ids)).distinct().all()
+                exclude_formula_ids = set([r[0] for r in exclude_formula_ids])
+                if exclude_formula_ids:
+                    query = query.filter(~Formula.id.in_(exclude_formula_ids))
+        # Other filters
+        brand = request.args.get('brand', '')
         if brand:
             query = query.filter(Formula.formula_brand == brand)
+        category = request.args.get('category', '')
         if category:
             query = query.filter(Formula.sbu_category == category)
+        lifecycle_phase = request.args.get('lifecycle_phase', '')
         if lifecycle_phase:
             query = query.filter(Formula.lifecycle_phase == lifecycle_phase)
-
+        production_site = request.args.get('production_site')
+        if production_site:
+            query = query.filter(Formula.production_sites.ilike(f'%{production_site}%'))
+        query = query.distinct()
         formulas = query.all()
+        # --- End: Copy filter logic ---
 
         # Create Excel workbook
         wb = openpyxl.Workbook()
         ws = wb.active
         ws.title = 'Formulas'
-        # Header
         headers = ['Object Number', 'Formulation Name', 'Lifecycle Phase', 'Brand', 'Category']
         ws.append(headers)
-        # Data rows
         for formula in formulas:
             ws.append([
                 formula.object_number,
@@ -1487,7 +1589,6 @@ def export_formulas_excel():
                 formula.formula_brand,
                 formula.sbu_category
             ])
-        # Format as table
         last_row = ws.max_row
         last_col = ws.max_column
         table_ref = f"A1:{chr(64+last_col)}{last_row}"
@@ -1496,11 +1597,9 @@ def export_formulas_excel():
                                showLastColumn=False, showRowStripes=True, showColumnStripes=False)
         table.tableStyleInfo = style
         ws.add_table(table)
-        # Set hard-coded column widths
         col_widths = [18, 32, 18, 18, 18]
         for i, width in enumerate(col_widths, start=1):
             ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = width
-        # Generate unique filename: FIND list export DDMMYY_N.xlsx
         today_str = datetime.datetime.now().strftime('%d%m%y')
         counter_file = os.path.join(BACKUPS_DIR, f'export_counter_{today_str}.txt')
         if os.path.exists(counter_file):
@@ -1514,11 +1613,9 @@ def export_formulas_excel():
         with open(counter_file, 'w') as f:
             f.write(str(counter))
         filename = f"FIND list export {today_str}_{counter}.xlsx"
-        # Save to in-memory buffer
         output = BytesIO()
         wb.save(output)
         output.seek(0)
-        # Send as file
         return send_file(
             output,
             as_attachment=True,

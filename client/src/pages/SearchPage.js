@@ -105,9 +105,13 @@ function SearchPage() {
         ingredientFilters: filteredIngredients,
         brand,
         category,
-        lifecyclePhase
+        lifecyclePhase,
+        production_site: productionSite, // ensure production site is included
       };
-      
+      // Add exclude ingredients as exclude_ingredient1, exclude_ingredient2, ...
+      excludeIngredients.forEach((ing, idx) => {
+        searchParams[`exclude_ingredient${idx+1}`] = ing.name;
+      });
       const data = await searchFormulas(searchParams, newPage);
       setResults(data.formulas);
       setPagination(data.pagination);
@@ -172,6 +176,18 @@ function SearchPage() {
     if (brand) params.append('brand', brand);
     if (category) params.append('category', category);
     if (lifecyclePhase) params.append('lifecycle_phase', lifecyclePhase);
+    if (productionSite) params.append('production_site', productionSite);
+    // Add ingredient filters
+    const filteredIngredients = ingredientInputs.filter(ing => ing.name.trim() !== '');
+    filteredIngredients.forEach((ing, idx) => {
+      params.append(`ingredientFilters[${idx}][name]`, ing.name);
+      if (ing.minAmount) params.append(`ingredientFilters[${idx}][minAmount]`, ing.minAmount);
+      if (ing.maxAmount) params.append(`ingredientFilters[${idx}][maxAmount]`, ing.maxAmount);
+    });
+    // Add exclude ingredients
+    excludeIngredients.forEach((ing, idx) => {
+      params.append(`exclude_ingredient${idx+1}`, ing.name);
+    });
     const url = `/api/formulas/export?${params.toString()}`;
     try {
       const response = await fetch(url);
@@ -283,7 +299,7 @@ function SearchPage() {
                       type="number" 
                       value={input.maxAmount} 
                       onChange={(e) => updateIngredientInput(index, 'maxAmount', e.target.value)}
-                      placeholder="Max ingredient amount (mg)"
+                      placeholder="Maxingredient amount (mg)"
                       className="amount-input"
                     />
                   </div>
