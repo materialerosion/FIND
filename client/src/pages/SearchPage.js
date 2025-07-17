@@ -12,6 +12,7 @@ function SearchPage() {
   const [brand, setBrand] = useState('');
   const [category, setCategory] = useState('');
   const [lifecyclePhase, setLifecyclePhase] = useState('');
+  const [formulationName, setFormulationName] = useState('');
   const [results, setResults] = useState([]);
   const [searching, setSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
@@ -32,6 +33,12 @@ function SearchPage() {
   const [excludeSuggestions, setExcludeSuggestions] = useState([]);
 
   const [productionSite, setProductionSite] = useState('');
+
+  // Combobox state for brand and production site
+  const [brandInput, setBrandInput] = useState('');
+  const [brandDropdownOpen, setBrandDropdownOpen] = useState(false);
+  const [productionSiteInput, setProductionSiteInput] = useState('');
+  const [productionSiteDropdownOpen, setProductionSiteDropdownOpen] = useState(false);
 
   // Load filter options
   useEffect(() => {
@@ -77,6 +84,7 @@ function SearchPage() {
         brand,
         category,
         lifecyclePhase,
+        formulation_name: formulationName,
         production_site: productionSite,
       };
       
@@ -106,6 +114,7 @@ function SearchPage() {
         brand,
         category,
         lifecyclePhase,
+        formulation_name: formulationName,
         production_site: productionSite, // ensure production site is included
       };
       // Add exclude ingredients as exclude_ingredient1, exclude_ingredient2, ...
@@ -115,7 +124,6 @@ function SearchPage() {
       const data = await searchFormulas(searchParams, newPage);
       setResults(data.formulas);
       setPagination(data.pagination);
-      window.scrollTo(0, 0);
     } catch (error) {
       console.error('Error searching formulas:', error);
     } finally {
@@ -177,6 +185,7 @@ function SearchPage() {
     if (category) params.append('category', category);
     if (lifecyclePhase) params.append('lifecycle_phase', lifecyclePhase);
     if (productionSite) params.append('production_site', productionSite);
+    if (formulationName) params.append('formulation_name', formulationName);
     // Add ingredient filters
     const filteredIngredients = ingredientInputs.filter(ing => ing.name.trim() !== '');
     filteredIngredients.forEach((ing, idx) => {
@@ -232,7 +241,7 @@ function SearchPage() {
               background: hoveredRow === idx ? '#e3eafc' : 'white',
               transition: 'background 0.15s',
             }}
-            onClick={() => window.location.href = `/formula/${formula.object_number}`}
+            onClick={() => window.open(`/formula/${formula.object_number}`, '_blank')}
             onMouseEnter={() => setHoveredRow(idx)}
             onMouseLeave={() => setHoveredRow(null)}
           >
@@ -359,18 +368,71 @@ function SearchPage() {
         
         <div className="form-section">
           <h3>Formula Properties</h3>
+          {/* Formulation Name search row */}
+          <div className="form-row" style={{ marginBottom: '1rem' }}>
+            <div className="form-group" style={{ width: '100%' }}>
+              <label>Formulation Name</label>
+              <input
+                type="text"
+                value={formulationName}
+                onChange={e => setFormulationName(e.target.value)}
+                placeholder="Enter formulation name..."
+                style={{ width: 260, padding: '6px 10px', borderRadius: 6, border: '1px solid #ccc' }}
+              />
+            </div>
+          </div>
           <div className="form-row">
             <div className="form-group">
               <label>Brand</label>
-              <select 
-                value={brand} 
-                onChange={(e) => setBrand(e.target.value)}
-              >
-                <option value="">Any Brand</option>
-                {filterOptions.brands.map((brandOption, index) => (
-                  <option key={index} value={brandOption}>{brandOption}</option>
-                ))}
-              </select>
+              <div style={{ position: 'relative' }}>
+                <input
+                  type="text"
+                  value={brandInput !== '' || brand === '' ? brandInput : brand}
+                  placeholder="Any Brand"
+                  onFocus={() => setBrandDropdownOpen(true)}
+                  onChange={e => {
+                    setBrandInput(e.target.value);
+                    setBrandDropdownOpen(true);
+                  }}
+                  onBlur={() => setTimeout(() => setBrandDropdownOpen(false), 150)}
+                  style={{ width: '100%', padding: '6px 10px', borderRadius: 6, border: '1px solid #ccc', height: '40px' }}
+                />
+                {brandDropdownOpen && (
+                  <div style={{
+                    position: 'absolute',
+                    zIndex: 10,
+                    background: 'white',
+                    border: '1px solid #ccc',
+                    borderRadius: 6,
+                    width: '100%',
+                    maxHeight: 180,
+                    overflowY: 'auto',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
+                  }}>
+                    <div
+                      style={{ padding: '6px 10px', cursor: 'pointer', color: brand === '' ? '#1976d2' : undefined }}
+                      onMouseDown={() => {
+                        setBrand('');
+                        setBrandInput('');
+                        setBrandDropdownOpen(false);
+                      }}
+                    >Any Brand</div>
+                    {filterOptions.brands
+                      .filter(b => !brandInput || b.toLowerCase().includes(brandInput.toLowerCase()))
+                      .map((brandOption, index) => (
+                        <div
+                          key={index}
+                          style={{ padding: '6px 10px', cursor: 'pointer', color: brand === brandOption ? '#1976d2' : undefined }}
+                          onMouseDown={() => {
+                            setBrand(brandOption);
+                            setBrandInput(brandOption);
+                            setBrandDropdownOpen(false);
+                          }}
+                        >{brandOption}</div>
+                      ))}
+                  </div>
+                )}
+              </div>
             </div>
             
             <div className="form-group">
@@ -400,15 +462,55 @@ function SearchPage() {
             </div>
             <div className="form-group">
               <label>Production Site</label>
-              <select
-                value={productionSite}
-                onChange={e => setProductionSite(e.target.value)}
-              >
-                <option value="">Any Production Site</option>
-                {filterOptions.productionSites && filterOptions.productionSites.map((site, idx) => (
-                  <option key={idx} value={site}>{site}</option>
-                ))}
-              </select>
+              <div style={{ position: 'relative' }}>
+                <input
+                  type="text"
+                  value={productionSiteInput !== '' || productionSite === '' ? productionSiteInput : productionSite}
+                  placeholder="Any Production Site"
+                  onFocus={() => setProductionSiteDropdownOpen(true)}
+                  onChange={e => {
+                    setProductionSiteInput(e.target.value);
+                    setProductionSiteDropdownOpen(true);
+                  }}
+                  onBlur={() => setTimeout(() => setProductionSiteDropdownOpen(false), 150)}
+                  style={{ width: '100%', padding: '6px 10px', borderRadius: 6, border: '1px solid #ccc', height: '40px' }}
+                />
+                {productionSiteDropdownOpen && (
+                  <div style={{
+                    position: 'absolute',
+                    zIndex: 10,
+                    background: 'white',
+                    border: '1px solid #ccc',
+                    borderRadius: 6,
+                    width: '100%',
+                    maxHeight: 180,
+                    overflowY: 'auto',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
+                  }}>
+                    <div
+                      style={{ padding: '6px 10px', cursor: 'pointer', color: productionSite === '' ? '#1976d2' : undefined }}
+                      onMouseDown={() => {
+                        setProductionSite('');
+                        setProductionSiteInput('');
+                        setProductionSiteDropdownOpen(false);
+                      }}
+                    >Any Production Site</div>
+                    {filterOptions.productionSites && filterOptions.productionSites
+                      .filter(site => !productionSiteInput || site.toLowerCase().includes(productionSiteInput.toLowerCase()))
+                      .map((site, idx) => (
+                        <div
+                          key={idx}
+                          style={{ padding: '6px 10px', cursor: 'pointer', color: productionSite === site ? '#1976d2' : undefined }}
+                          onMouseDown={() => {
+                            setProductionSite(site);
+                            setProductionSiteInput(site);
+                            setProductionSiteDropdownOpen(false);
+                          }}
+                        >{site}</div>
+                      ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

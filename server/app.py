@@ -546,6 +546,11 @@ def search_formulas():
         if production_site:
             query = query.filter(Formula.production_sites.ilike(f'%{production_site}%'))
         
+        # Filter by formulation name (partial, case-insensitive match)
+        formulation_name = request.args.get('formulation_name')
+        if formulation_name:
+            query = query.filter(Formula.formulation_name.ilike(f'%{formulation_name}%'))
+        
         # Make sure results are distinct
         query = query.distinct()
         
@@ -1568,9 +1573,18 @@ def export_formulas_excel():
         lifecycle_phase = request.args.get('lifecycle_phase', '')
         if lifecycle_phase:
             query = query.filter(Formula.lifecycle_phase == lifecycle_phase)
+        
+        # Filter by production site (partial, case-insensitive match)
         production_site = request.args.get('production_site')
         if production_site:
             query = query.filter(Formula.production_sites.ilike(f'%{production_site}%'))
+        
+        # Filter by formulation name (partial, case-insensitive match)
+        formulation_name = request.args.get('formulation_name')
+        if formulation_name:
+            query = query.filter(Formula.formulation_name.ilike(f'%{formulation_name}%'))
+        
+        # Make sure results are distinct
         query = query.distinct()
         formulas = query.all()
         # --- End: Copy filter logic ---

@@ -61,6 +61,10 @@ export const searchFormulas = async (searchParams, page = 1, perPage = 12) => {
     url += `&production_site=${encodeURIComponent(searchParams.production_site)}`;
   }
   
+  if (searchParams.formulation_name) {
+    url += `&formulation_name=${encodeURIComponent(searchParams.formulation_name)}`;
+  }
+  
   // Add exclude ingredients
   Object.keys(searchParams).forEach(key => {
     if (key.startsWith('exclude_ingredient')) {
